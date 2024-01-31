@@ -1,0 +1,56 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Cmake build
+debug/
+build/
+release/
+build_doc/
+
+# CLion
+.idea
+
+# Project
+data/
+tensors/
+run/
+
+# Dir
+.vscode/
+
+# File
+*swp
+*swo
+.DS_Store
+.ycm_extra_conf.py
+
