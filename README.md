@@ -1,4 +1,4 @@
-# UltralDMRG: A Powerful 1D Tensor Network Library for Simulating Strongly Correlated Electron Systems
+# UltraDMRG: A Powerful 1D Tensor Network Library for Simulating Strongly Correlated Electron Systems
 
 QuantumLiquids/UltraDMRG is a powerful and efficient library for performing large-scale,
 high-performance calculations using one-dimensional tensor network algorithms.
