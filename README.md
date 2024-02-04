@@ -1,14 +1,16 @@
 # UltraDMRG: A Powerful 1D Tensor Network Library for Simulating Strongly Correlated Electron Systems
 
+[![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
+
 QuantumLiquids/UltraDMRG is a powerful and efficient library for performing large-scale,
 high-performance calculations using one-dimensional tensor network algorithms.
 It is specifically designed to tackle the complexities of simulating untamable
 two-dimensional strongly correlated electron systems.
 Our goal in creating this package is to lower the barriers
-associated with simulating strongly correlated electron systems, 
+associated with simulating strongly correlated electron systems,
 offering a user-friendly and accessible solution for researchers in this field.
 
-## Functionality
+## Features
 
 UltraDMRG offers the following key features:
 
@@ -18,8 +20,35 @@ UltraDMRG offers the following key features:
 
 ## To-Do List
 
-- [ ] infinite DMRG 
+- [ ] infinite DMRG
 - [ ] DMRG low-energy excitation states
+
+## Performance Benchmark
+
+As a demonstration of the performance of UltraDMRG,
+we conducted a benchmark comparing the performance of UltraDMRG with ITensor(C++).
+Specifically, we on focused on comparing the DMRG sweep time using both packages.
+The test model is the $4 \times 16$ Hubbard cylinder at a doping level of 1/8,
+and we maintain a kept state dimension of $D=2000$ with incorporating $U(1)\times U(1)$ symmetry.
+
+![benchmark](./figure/benchmark_hubbard4x16U1U1.png)
+
+Note that ITensor utilizes the Davidson method for diagonalizing the Hamiltonian,
+whereas UltraDMRG employs the Lanczos method.
+This difference in methodology makes a performance comparison not straightforward.
+To ensure a fair evaluation, we established consistent parameters for both packages
+in the following way.
+The truncation error cut-off was set at $10^{-8}$,
+and the diagonalized Hamiltonian accuracy at $10^{-9}$.
+We also set the iteration times for both the Davidson and Lanczos methods to 100,
+effectively approaching infinity.
+We specifically selected sweep times exclusively from near-converged sweeps.
+We also close the MPI acceleration in UltraDMRG.
+We hope above setting can ensure an unbiased comparison.
+
+The codes used in the benchmark can be found in the directory `./benchmark`.
+The results of the performance benchmark,
+showcasing the sweep times, are presented in the accompanying figure.
 
 ## Dependence
 
@@ -79,10 +108,6 @@ We would like to express our gratitude to the following individuals for their co
 - Zhen-Cheng Gu, my postdoc advisor, one of the pioneers in the field of tensor network.
 
 Their expertise and support have been invaluable in the development of UltraDMRG.
-
-## Benchmark
-
-To be appeared
 
 ## License
 
