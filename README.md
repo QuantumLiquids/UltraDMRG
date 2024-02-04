@@ -31,7 +31,7 @@ Specifically, we on focused on comparing the DMRG sweep time using both packages
 The test model is the $4 \times 16$ Hubbard cylinder at a doping level of 1/8,
 and we maintain a kept state dimension of $D=2000$ with incorporating $U(1)\times U(1)$ symmetry.
 
-![benchmark](./figure/benchmark_hubbard4x16U1U1.png)
+![benchmark](./benchmark/benchmark_hubbard4x16U1U1.png)
 
 Note that ITensor utilizes the Davidson method for diagonalizing the Hamiltonian,
 whereas UltraDMRG employs the Lanczos method.
