@@ -17,7 +17,7 @@
 #include "qlmps/consts.h"       // kNullUintVec, kNullUintVecVec
 #include "qlmps/site_vec.h"     // SiteVec
 #include "qlmps/one_dim_tn/mpo/mpo.h"    // MPO
-#include "qlmps/one_dim_tn/mat_repr_mpo.h" //MatReprMPO
+#include "qlmps/one_dim_tn/mpo/mat_repr_mpo.h" //MatReprMPO
 #include "qlmps/one_dim_tn/mpo/mpogen/fsm.h"
 #include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/coef_op_alg.h"
 #include "qlten/qlten.h"
@@ -43,7 +43,6 @@ class MPOGenerator {
   using QNSctT = QNSector<QNT>;
   using QLTensorT = QLTensor<TenElemT, QNT>;
   using QLTensorVec = std::vector<QLTensorT>;
-  using PQLTensorVec = std::vector<QLTensorT *>;
 
   MPOGenerator(const SiteVec<TenElemT, QNT> &);
 
@@ -86,9 +85,9 @@ class MPOGenerator {
   std::vector<IndexT> pb_out_vector_;
   QNT zero_div_;
   std::vector<QLTensorT> id_op_vector_;
-  FSM fsm_;
   LabelConvertor<TenElemT> coef_label_convertor_;
   LabelConvertor<QLTensorT> op_label_convertor_;
+  FSM fsm_;
 
   std::vector<size_t> SortSparOpReprMatColsByQN_(
       SparOpReprMat &, IndexT &, const QLTensorVec &

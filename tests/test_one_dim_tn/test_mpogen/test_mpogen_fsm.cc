@@ -5,10 +5,12 @@
 * 
 * Description: QuantumLiquids/UltraDMRG project. Unittests for finite state machine used by MPO generator.
 */
-#include "qlmps/one_dim_tn/mpo/mpogen/fsm.h"
 
 #include "gtest/gtest.h"
+#include "qlmps/one_dim_tn/mpo/mpogen/fsm.h"
 
+const BasisOpLabel kIdOpLabel = 0;                 // Coefficient label for identity id.
+const OpRepr kIdOpRepr = OpRepr(kIdOpLabel);  // Operator representation for identity operator.
 
 void RunTestFSMInitializationCase(const size_t N) {
   if (N == 0) {
@@ -19,17 +21,15 @@ void RunTestFSMInitializationCase(const size_t N) {
 
   FSM fsm(N);
   EXPECT_EQ(fsm.phys_size(), N);
-  EXPECT_EQ(fsm.fsm_size(), N+1);
+  EXPECT_EQ(fsm.fsm_size(), N + 1);
 }
-
 
 TEST(TestFSM, Initialization) {
-  RunTestFSMInitializationCase(0);  
-  RunTestFSMInitializationCase(1);  
-  RunTestFSMInitializationCase(5);  
-  RunTestFSMInitializationCase(20);  
+  RunTestFSMInitializationCase(0);
+  RunTestFSMInitializationCase(1);
+  RunTestFSMInitializationCase(5);
+  RunTestFSMInitializationCase(20);
 }
-
 
 void RunTestAddPathCase1(void) {
   FSM fsm0(1);
@@ -50,7 +50,7 @@ void RunTestAddPathCase1(void) {
   EXPECT_EQ(fsm_paths[0].op_reprs, OpReprVec({kIdOpRepr}));
 
   FSM fsm2(1);
-  OpLabel s(1);
+  BasisOpLabel s(1);
   fsm2.AddPath(0, 0, {OpRepr(s)});
   fsm_paths = fsm2.GetFSMPaths();
   EXPECT_EQ(fsm_paths.size(), 1);
@@ -59,7 +59,6 @@ void RunTestAddPathCase1(void) {
       FSMNodeVec({fsm_node1, fsm_node2}));
   EXPECT_EQ(fsm_paths[0].op_reprs, OpReprVec({OpRepr(s)}));
 }
-
 
 void RunTestAddPathCase2(void) {
   auto s = OpRepr(1);
@@ -92,7 +91,6 @@ void RunTestAddPathCase2(void) {
       OpReprVec({kIdOpRepr, s}));
 }
 
-
 void RunTestAddPathCase3(void) {
   auto s = OpRepr(1);
   FSM fsm(2);
@@ -114,7 +112,6 @@ void RunTestAddPathCase3(void) {
   EXPECT_EQ(paths[1].op_reprs, OpReprVec({s, s}));
   EXPECT_EQ(paths[1].fsm_nodes, FSMNodeVec({n1, n4, n3}));
 }
-
 
 void RunTestAddPathCase4(void) {
   auto s = OpRepr(1);
@@ -151,11 +148,10 @@ void RunTestAddPathCase4(void) {
   EXPECT_EQ(paths[2].fsm_nodes, FSMNodeVec({n1, n6, n8, n9, n5}));
 }
 
-
 void RunTestAddPathCase5(void) {
   auto s = OpRepr(1);
   FSM fsm(5);
-  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s}); 
+  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s});
   fsm.AddPath(1, 4, {s, s, kIdOpRepr, s});
   fsm.AddPath(1, 3, {s, s, s});
   FSMNode n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13;
@@ -195,7 +191,6 @@ void RunTestAddPathCase5(void) {
   EXPECT_EQ(paths[2].fsm_nodes, FSMNodeVec({n1, n7, n11, n12, n13, n6}));
 }
 
-
 TEST(TestFSM, TestAddPath) {
   RunTestAddPathCase1();
   RunTestAddPathCase2();
@@ -203,7 +198,6 @@ TEST(TestFSM, TestAddPath) {
   RunTestAddPathCase4();
   RunTestAddPathCase5();
 }
-
 
 void RunTestGenMatReprCase1(void) {
   FSM fsm1(1);
@@ -229,10 +223,9 @@ void RunTestGenMatReprCase1(void) {
   fsm3.AddPath(0, 0, {t});
   fsm_mat_repr = fsm3.GenMatRepr();
   SparOpReprMat bchmk_m2(1, 1);
-  bchmk_m2.SetElem(0, 0, s+t);
+  bchmk_m2.SetElem(0, 0, s + t);
   EXPECT_EQ(fsm_mat_repr[0], bchmk_m2);
 }
-
 
 void RunTestGenMatReprCase2(void) {
   auto s = OpRepr(1);
@@ -251,7 +244,6 @@ void RunTestGenMatReprCase2(void) {
   EXPECT_EQ(fsm_mat_repr[1], bchmk_mat1);
 }
 
-
 void RunTestGenMatReprCase3(void) {
   auto s = OpRepr(1);
   FSM fsm(2);
@@ -268,7 +260,6 @@ void RunTestGenMatReprCase3(void) {
   EXPECT_EQ(fsm_mat_repr[0], bchmk_mat0);
   EXPECT_EQ(fsm_mat_repr[1], bchmk_mat1);
 }
-
 
 void RunTestGenMatReprCase4(void) {
   auto s = OpRepr(1);
@@ -298,11 +289,10 @@ void RunTestGenMatReprCase4(void) {
   EXPECT_EQ(fsm_mat_repr[3], bchmk_mat3);
 }
 
-
 void RunTestGenMatReprCase5(void) {
   auto s = OpRepr(1);
   FSM fsm(5);
-  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s}); 
+  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s});
   fsm.AddPath(1, 4, {s, s, kIdOpRepr, s});
   fsm.AddPath(1, 3, {s, s, s});
   SparOpReprMat bchmk_mat0(1, 2);
@@ -333,7 +323,6 @@ void RunTestGenMatReprCase5(void) {
   EXPECT_EQ(fsm_mat_repr[4], bchmk_mat4);
 }
 
-
 TEST(TestFSM, TestGenMatRepr) {
   RunTestGenMatReprCase1();
   RunTestGenMatReprCase2();
@@ -341,7 +330,6 @@ TEST(TestFSM, TestGenMatRepr) {
   RunTestGenMatReprCase4();
   RunTestGenMatReprCase5();
 }
-
 
 void RunTestGenCompressedMatReprCase1(void) {
   FSM fsm1(1);
@@ -362,7 +350,6 @@ void RunTestGenCompressedMatReprCase1(void) {
   EXPECT_EQ(fsm_comp_mat_repr[0], bchmk_mat10);
 }
 
-
 void RunTestGenCompressedMatReprCase2(void) {
   auto s = OpRepr(1);
   FSM fsm(2);
@@ -379,7 +366,6 @@ void RunTestGenCompressedMatReprCase2(void) {
   EXPECT_EQ(fsm_comp_mat_repr[1], bchmk_mat1);
 }
 
-
 void RunTestGenCompressedMatReprCase3(void) {
   auto s = OpRepr(1);
   FSM fsm(2);
@@ -387,12 +373,11 @@ void RunTestGenCompressedMatReprCase3(void) {
   fsm.AddPath(0, 1, {s, s});
   SparOpReprMat bchmk_m0(1, 1), bchmk_m1(1, 1);
   bchmk_m0.SetElem(0, 0, s);
-  bchmk_m1.SetElem(0, 0, s+s);
+  bchmk_m1.SetElem(0, 0, s + s);
   auto fsm_comp_mat_repr = fsm.GenCompressedMatRepr();
   EXPECT_EQ(fsm_comp_mat_repr[0], bchmk_m0);
   EXPECT_EQ(fsm_comp_mat_repr[1], bchmk_m1);
 }
-
 
 void RunTestGenCompressedMatReprCase4(void) {
   auto s = OpRepr(1);
@@ -418,11 +403,10 @@ void RunTestGenCompressedMatReprCase4(void) {
   EXPECT_EQ(fsm_comp_mat_repr[3], bchmk_m3);
 }
 
-
 void RunTestGenCompressedMatReprCase5(void) {
   auto s = OpRepr(1);
   FSM fsm(5);
-  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s}); 
+  fsm.AddPath(0, 4, {s, kIdOpRepr, kIdOpRepr, kIdOpRepr, s});
   fsm.AddPath(1, 4, {s, s, kIdOpRepr, s});
   fsm.AddPath(1, 3, {s, s, s});
   SparOpReprMat bchmk_m0(1, 2), bchmk_m1(2, 2), bchmk_m2(2, 2), bchmk_m3(2, 2), bchmk_m4(2, 1);
@@ -445,10 +429,9 @@ void RunTestGenCompressedMatReprCase5(void) {
   EXPECT_EQ(fsm_comp_mat_repr[4], bchmk_m4);
 }
 
-
 void RunTestGenCompressedMatReprCase6(void) {
-  CoefLabel j1 = 1, j2 = 2;
-  OpLabel s = 1;
+  CNumberLabel j1 = 1, j2 = 2;
+  BasisOpLabel s = 1;
   OpRepr op_s(s);
   FSM fsm(4);
   fsm.AddPath(0, 1, {OpRepr(j1, s), op_s});
@@ -479,10 +462,9 @@ void RunTestGenCompressedMatReprCase6(void) {
   EXPECT_EQ(fsm_comp_mat_repr[3], bchmk_m3);
 }
 
-
 void RunTestGenCompressedMatReprCase7(void) {
-  CoefLabel j = 1, k = 2;
-  OpLabel sx = 1, sy = 2, sz = 3;
+  CNumberLabel j = 1, k = 2;
+  BasisOpLabel sx = 1, sy = 2, sz = 3;
   FSM fsm(3);
   fsm.AddPath(0, 1, {OpRepr(j, sx), OpRepr(sx)});
   fsm.AddPath(0, 1, {OpRepr(j, sy), OpRepr(sy)});
@@ -513,7 +495,6 @@ void RunTestGenCompressedMatReprCase7(void) {
   EXPECT_EQ(fsm_comp_mat_repr[2], bchmk_m2);
 }
 
-
 TEST(TestFSM, TestGenCompressedMatRepr) {
   RunTestGenCompressedMatReprCase1();
   RunTestGenCompressedMatReprCase2();
@@ -523,7 +504,6 @@ TEST(TestFSM, TestGenCompressedMatRepr) {
   RunTestGenCompressedMatReprCase6();
   RunTestGenCompressedMatReprCase7();
 }
-
 
 TEST(TestLabelConvertor, TestConversion) {
   auto real_coef_label_convertor = LabelConvertor<double>(1.0);

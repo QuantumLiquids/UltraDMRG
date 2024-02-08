@@ -10,7 +10,7 @@
 #ifndef QLMPS_ALGORITHM_DMRG_DMRG_H
 #define QLMPS_ALGORITHM_DMRG_DMRG_H
 
-#include "qlmps/one_dim_tn/mat_repr_mpo.h"
+#include "qlmps/one_dim_tn/mpo/mat_repr_mpo.h"
 
 namespace qlmps {
 template<typename TenT>

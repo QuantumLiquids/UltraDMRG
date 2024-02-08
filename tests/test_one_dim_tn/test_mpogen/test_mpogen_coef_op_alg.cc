@@ -5,16 +5,16 @@
 * 
 * Description: QuantumLiquids/UltraDMRG project. Unittests for algebra of MPO's coefficient and operator.
 */
-#include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/coef_op_alg.h"
 
 #include <vector>
-
 #include "gtest/gtest.h"
+#include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/coef_op_alg.h"
 
+const BasisOpLabel kIdOpLabel = 0;                 // Coefficient label for identity id.
+const OpRepr kIdOpRepr = OpRepr(kIdOpLabel);  // Operator representation for identity operator.
 
 // Helpers.
 const size_t kMaxTermNum = 5;
-
 
 std::vector<long> RandVec(size_t size) {
   std::vector<long> rand_vec;
@@ -24,38 +24,33 @@ std::vector<long> RandVec(size_t size) {
   return rand_vec;
 }
 
-
 std::vector<long> InverseVec(const std::vector<long> &v) {
   std::vector<long> inv_v = v;
   std::reverse(inv_v.begin(), inv_v.end());
   return inv_v;
 }
 
-
 std::vector<CoefRepr> GenCoefReprVec(
-    const std::vector<CoefLabel> &coef_labels) {
+    const std::vector<CNumberLabel> &coef_labels) {
   std::vector<CoefRepr> coef_reprs;
-  for (auto label: coef_labels) { coef_reprs.push_back(CoefRepr(label)); }
+  for (auto label : coef_labels) { coef_reprs.push_back(CoefRepr(label)); }
   return coef_reprs;
 }
 
-
 CoefRepr RandCoefRepr(void) {
   size_t term_num = rand() % kMaxTermNum + 1;
-  std::vector<CoefLabel> coef_labels;
+  std::vector<CNumberLabel> coef_labels;
   for (size_t i = 0; i < term_num; ++i) {
     coef_labels.push_back(rand());
   }
   return CoefRepr(coef_labels);
 }
 
-
 void RandSetSparCoefReprMatElem(SparCoefReprMat &coef_repr_mat) {
   auto x = rand() % coef_repr_mat.rows;
   auto y = rand() % coef_repr_mat.cols;
   coef_repr_mat.SetElem(x, y, RandCoefRepr());
 }
-
 
 void RandFillSparCoefReprMat(
     SparCoefReprMat &coef_repr_mat, const size_t filling) {
@@ -68,11 +63,10 @@ void RandFillSparCoefReprMat(
   }
 }
 
-
 OpRepr RandOpRepr(void) {
   size_t term_num = rand() % kMaxTermNum + 1;
   std::vector<CoefRepr> coef_reprs;
-  std::vector<OpLabel> op_labels;
+  std::vector<BasisOpLabel> op_labels;
   for (size_t i = 0; i < term_num; ++i) {
     coef_reprs.push_back(RandCoefRepr());
     op_labels.push_back(rand());
@@ -80,13 +74,11 @@ OpRepr RandOpRepr(void) {
   return OpRepr(coef_reprs, op_labels);
 }
 
-
 void RandSetSparOpReprMatElem(SparOpReprMat &op_repr_mat) {
   auto x = rand() % op_repr_mat.rows;
   auto y = rand() % op_repr_mat.cols;
   op_repr_mat.SetElem(x, y, RandOpRepr());
 }
-
 
 void RandFillSparOpReprMat(SparOpReprMat &op_repr_mat, const size_t filling) {
   auto rows = op_repr_mat.rows;
@@ -102,17 +94,16 @@ void RandFillSparOpReprMat(SparOpReprMat &op_repr_mat, const size_t filling) {
 // Testing representation of coefficient.
 TEST(TestCoefRepr, Initialization) {
   CoefRepr null_coef_repr;
-  EXPECT_EQ(null_coef_repr.GetCoefLabelList(), std::vector<CoefLabel>());
+  EXPECT_EQ(null_coef_repr.GetCoefLabelList(), std::vector<CNumberLabel>());
 
   CoefRepr id_coef_repr(kIdCoefLabel);
-  std::vector<CoefLabel> id_coef_label_list = {kIdCoefLabel};
+  std::vector<CNumberLabel> id_coef_label_list = {kIdCoefLabel};
   EXPECT_EQ(id_coef_repr.GetCoefLabelList(), id_coef_label_list);
 
   auto rand_coef_labels = RandVec(5);
   CoefRepr rand_coef_repr(rand_coef_labels);
   EXPECT_EQ(rand_coef_repr.GetCoefLabelList(), rand_coef_labels);
 }
-
 
 void RunTestCoefReprEquivalentCase(size_t size) {
   auto rand_coef_labels1 = RandVec(size);
@@ -127,7 +118,6 @@ void RunTestCoefReprEquivalentCase(size_t size) {
   }
 }
 
-
 TEST(TestCoefRepr, Equivalent) {
   RunTestCoefReprEquivalentCase(0);
   RunTestCoefReprEquivalentCase(1);
@@ -135,11 +125,10 @@ TEST(TestCoefRepr, Equivalent) {
   RunTestCoefReprEquivalentCase(5);
 }
 
-
 void RunTestCoefReprAddCase(size_t lhs_size, size_t rhs_size) {
   auto lhs_rand_coef_labels = RandVec(lhs_size);
   auto rhs_rand_coef_labels = RandVec(rhs_size);
-  std::vector<CoefLabel> added_rand_coef_labels;
+  std::vector<CNumberLabel> added_rand_coef_labels;
   added_rand_coef_labels.reserve(lhs_size + rhs_size);
   added_rand_coef_labels.insert(
       added_rand_coef_labels.end(),
@@ -153,7 +142,6 @@ void RunTestCoefReprAddCase(size_t lhs_size, size_t rhs_size) {
   EXPECT_EQ(lhs_coef_repr + rhs_coef_repr, added_coef_repr);
   EXPECT_EQ(rhs_coef_repr + lhs_coef_repr, added_coef_repr);
 }
-
 
 TEST(TestCoefRepr, Add) {
   RunTestCoefReprAddCase(0, 0);
@@ -173,12 +161,12 @@ TEST(TestCoefRepr, Add) {
 TEST(TestOpRepr, Initialization) {
   OpRepr null_op_repr;
   EXPECT_EQ(null_op_repr.GetCoefReprList(), std::vector<CoefRepr>());
-  EXPECT_EQ(null_op_repr.GetOpLabelList(), std::vector<OpLabel>());
+  EXPECT_EQ(null_op_repr.GetOpLabelList(), std::vector<BasisOpLabel>());
 
-  OpLabel rand_op_label = rand();
+  BasisOpLabel rand_op_label = rand();
   OpRepr nocoef_op_repr(rand_op_label);
   std::vector<CoefRepr> nocoef_op_coef_repr_list = {kIdCoefRepr};
-  std::vector<OpLabel> nocoef_op_op_label_list = {rand_op_label};
+  std::vector<BasisOpLabel> nocoef_op_op_label_list = {rand_op_label};
   EXPECT_EQ(nocoef_op_repr.GetCoefReprList(), nocoef_op_coef_repr_list);
   EXPECT_EQ(nocoef_op_repr.GetOpLabelList(), nocoef_op_op_label_list);
 
@@ -191,7 +179,7 @@ TEST(TestOpRepr, Initialization) {
 
   size_t size = 5;
   std::vector<CoefRepr> rand_coef_reprs;
-  std::vector<OpLabel> rand_op_labels;
+  std::vector<BasisOpLabel> rand_op_labels;
   for (size_t i = 0; i < size; ++i) {
     rand_coef_reprs.push_back(CoefRepr(rand()));
     rand_op_labels.push_back(rand());
@@ -206,19 +194,18 @@ TEST(TestOpRepr, Initialization) {
 
   auto coef1 = RandCoefRepr();
   auto coef2 = RandCoefRepr();
-  OpLabel op_label1 = rand() + 1;
+  BasisOpLabel op_label1 = rand() + 1;
   OpRepr op1({coef1, coef2}, {op_label1, op_label1});
   EXPECT_EQ(op1.GetCoefReprList(), CoefReprVec({coef1 + coef2}));
-  EXPECT_EQ(op1.GetOpLabelList(), std::vector<OpLabel>({op_label1}));
+  EXPECT_EQ(op1.GetOpLabelList(), std::vector<BasisOpLabel>({op_label1}));
 
-  OpLabel op_label2 = rand() + 1;
-  OpRepr op2(std::vector<OpLabel>({op_label1, op_label1, op_label2}));
+  BasisOpLabel op_label2 = rand() + 1;
+  OpRepr op2(std::vector<BasisOpLabel>({op_label1, op_label1, op_label2}));
   EXPECT_EQ(
       op2.GetCoefReprList(),
       CoefReprVec({kIdCoefRepr + kIdCoefRepr, kIdCoefRepr}));
-  EXPECT_EQ(op2.GetOpLabelList(), std::vector<OpLabel>({op_label1, op_label2}));
+  EXPECT_EQ(op2.GetOpLabelList(), std::vector<BasisOpLabel>({op_label1, op_label2}));
 }
-
 
 void RunTestOpReprEquivalentCase(size_t size) {
   auto rand_vec1a = RandVec(size);
@@ -240,14 +227,12 @@ void RunTestOpReprEquivalentCase(size_t size) {
   }
 }
 
-
 TEST(TestOpRepr, TestOpReprEquivalent) {
   RunTestOpReprEquivalentCase(0);
   RunTestOpReprEquivalentCase(1);
   RunTestOpReprEquivalentCase(3);
   RunTestOpReprEquivalentCase(5);
 }
-
 
 void RunTestOpReprAddCase1(size_t lhs_size, size_t rhs_size) {
   auto lhs_rand_coef_reprs = GenCoefReprVec(RandVec(lhs_size));
@@ -262,7 +247,7 @@ void RunTestOpReprAddCase1(size_t lhs_size, size_t rhs_size) {
   added_rand_coef_reprs.insert(
       added_rand_coef_reprs.end(),
       rhs_rand_coef_reprs.begin(), rhs_rand_coef_reprs.end());
-  std::vector<OpLabel> added_rand_op_labels;
+  std::vector<BasisOpLabel> added_rand_op_labels;
   added_rand_op_labels.reserve(lhs_size + rhs_size);
   added_rand_op_labels.insert(
       added_rand_op_labels.end(),
@@ -276,7 +261,6 @@ void RunTestOpReprAddCase1(size_t lhs_size, size_t rhs_size) {
   EXPECT_EQ(lhs_op_repr + rhs_op_repr, added_op_repr);
   EXPECT_EQ(rhs_op_repr + lhs_op_repr, added_op_repr);
 }
-
 
 void RunTestOpReprAddCase2(void) {
   auto coef1 = RandCoefRepr();
@@ -293,7 +277,6 @@ void RunTestOpReprAddCase2(void) {
   EXPECT_EQ(op4 + op1, op5);
 }
 
-
 TEST(TestOpRepr, TestOpReprAdd) {
   RunTestOpReprAddCase1(0, 0);
   RunTestOpReprAddCase1(1, 0);
@@ -309,7 +292,6 @@ TEST(TestOpRepr, TestOpReprAdd) {
   RunTestOpReprAddCase2();
 }
 
-
 void RunTestSparCoefReprMatInitializationCase(size_t row_num, size_t col_num) {
   SparCoefReprMat spar_mat(row_num, col_num);
   EXPECT_EQ(spar_mat.rows, row_num);
@@ -320,7 +302,6 @@ void RunTestSparCoefReprMatInitializationCase(size_t row_num, size_t col_num) {
   EXPECT_EQ(indexes.size(), size);
   for (size_t i = 0; i < size; ++i) { EXPECT_EQ(indexes[i], -1); }
 }
-
 
 TEST(TestSparCoefReprMat, Initialization) {
   SparCoefReprMat null_coef_repr_mat;
@@ -336,7 +317,6 @@ TEST(TestSparCoefReprMat, Initialization) {
   RunTestSparCoefReprMatInitializationCase(3, 5);
   RunTestSparCoefReprMatInitializationCase(5, 5);
 }
-
 
 void RunTestSparCoefReprMatElemGetterAndSetterCase(
     size_t row_num, size_t col_num) {
@@ -375,7 +355,6 @@ void RunTestSparCoefReprMatElemGetterAndSetterCase(
   }
 }
 
-
 TEST(TestSparCoefReprMat, ElemGetterAndSetter) {
   RunTestSparCoefReprMatElemGetterAndSetterCase(0, 0);
   RunTestSparCoefReprMatElemGetterAndSetterCase(1, 1);
@@ -386,7 +365,6 @@ TEST(TestSparCoefReprMat, ElemGetterAndSetter) {
   RunTestSparCoefReprMatElemGetterAndSetterCase(5, 5);
   RunTestSparCoefReprMatElemGetterAndSetterCase(20, 20);
 }
-
 
 void RunTestSparCoefReprMatRowAndColGetter(
     const size_t row_num, const size_t col_num) {
@@ -425,7 +403,6 @@ void RunTestSparCoefReprMatRowAndColGetter(
   }
 }
 
-
 TEST(TestSparCoefReprMat, RowAndColGetter) {
   RunTestSparCoefReprMatRowAndColGetter(0, 0);
   RunTestSparCoefReprMatRowAndColGetter(1, 1);
@@ -435,7 +412,6 @@ TEST(TestSparCoefReprMat, RowAndColGetter) {
   RunTestSparCoefReprMatRowAndColGetter(5, 3);
   RunTestSparCoefReprMatRowAndColGetter(5, 5);
 }
-
 
 void RunTestSparCoefReprMatRemoveRowAndColCase(
     const size_t row_num, const size_t col_num) {
@@ -473,7 +449,6 @@ void RunTestSparCoefReprMatRemoveRowAndColCase(
   }
 }
 
-
 TEST(TestSparCoefReprMat, RemoveRowAndCol) {
   RunTestSparCoefReprMatRemoveRowAndColCase(1, 1);
   RunTestSparCoefReprMatRemoveRowAndColCase(1, 5);
@@ -483,7 +458,6 @@ TEST(TestSparCoefReprMat, RemoveRowAndCol) {
   RunTestSparCoefReprMatRemoveRowAndColCase(5, 5);
   RunTestSparCoefReprMatRemoveRowAndColCase(100, 100);
 }
-
 
 void RunTestSparCoefReprMatSwapTwoRowsAndColsCase(
     const size_t row_num, const size_t col_num) {
@@ -509,7 +483,6 @@ void RunTestSparCoefReprMatSwapTwoRowsAndColsCase(
   EXPECT_EQ(spar_mat_to_swap_cols.GetCol(col_idx2), col1);
 }
 
-
 TEST(TestSparCoefReprMat, SwapTwoRowsAndCols) {
   RunTestSparCoefReprMatSwapTwoRowsAndColsCase(1, 1);
   RunTestSparCoefReprMatSwapTwoRowsAndColsCase(1, 5);
@@ -519,7 +492,6 @@ TEST(TestSparCoefReprMat, SwapTwoRowsAndCols) {
   RunTestSparCoefReprMatSwapTwoRowsAndColsCase(5, 5);
   RunTestSparCoefReprMatSwapTwoRowsAndColsCase(20, 20);
 }
-
 
 void RunTestSparCoefReprMatTransposeRowsAndCols(
     const std::vector<size_t> &transposed_row_idxs,
@@ -546,7 +518,6 @@ void RunTestSparCoefReprMatTransposeRowsAndCols(
   }
 }
 
-
 TEST(TestSparCoefReprMat, TransposeRowsAndCols) {
   RunTestSparCoefReprMatTransposeRowsAndCols({0, 1}, {0, 1});
   RunTestSparCoefReprMatTransposeRowsAndCols({1, 0}, {0, 1});
@@ -555,7 +526,6 @@ TEST(TestSparCoefReprMat, TransposeRowsAndCols) {
   RunTestSparCoefReprMatTransposeRowsAndCols({2, 1, 0}, {4, 3, 1, 0, 2});
   RunTestSparCoefReprMatTransposeRowsAndCols({4, 3, 1, 0, 2}, {1, 0, 2});
 }
-
 
 void RunTestSparOpReprMatInitializationCase(size_t row_num, size_t col_num) {
   SparOpReprMat spar_mat(row_num, col_num);
@@ -567,7 +537,6 @@ void RunTestSparOpReprMatInitializationCase(size_t row_num, size_t col_num) {
   EXPECT_EQ(indexes.size(), size);
   for (size_t i = 0; i < size; ++i) { EXPECT_EQ(indexes[i], -1); }
 }
-
 
 TEST(TestSparOpReprMat, Initialization) {
   SparOpReprMat null_op_repr_mat;
@@ -584,7 +553,6 @@ TEST(TestSparOpReprMat, Initialization) {
   RunTestSparOpReprMatInitializationCase(5, 5);
 }
 
-
 void RunTestSparOpReprMatSortRowsAndColsCase(size_t row_num, size_t col_num) {
   SparOpReprMat spar_mat(row_num, col_num);
   RandFillSparOpReprMat(spar_mat, 3);
@@ -593,7 +561,7 @@ void RunTestSparOpReprMatSortRowsAndColsCase(size_t row_num, size_t col_num) {
   std::vector<size_t> row_nonull_elem_nums(row_num, 0);
   for (size_t x = 0; x < row_num; ++x) {
     auto row = spar_mat.GetRow(x);
-    for (auto &elem: row) {
+    for (auto &elem : row) {
       if (elem != kNullOpRepr) {
         row_nonull_elem_nums[x]++;
       }
@@ -609,7 +577,7 @@ void RunTestSparOpReprMatSortRowsAndColsCase(size_t row_num, size_t col_num) {
   std::vector<size_t> col_nonull_elem_nums(col_num, 0);
   for (size_t y = 0; y < col_num; ++y) {
     auto col = spar_mat.GetCol(y);
-    for (auto &elem: col) {
+    for (auto &elem : col) {
       if (elem != kNullOpRepr) {
         col_nonull_elem_nums[y]++;
       }
@@ -622,7 +590,6 @@ void RunTestSparOpReprMatSortRowsAndColsCase(size_t row_num, size_t col_num) {
   }
 }
 
-
 TEST(TestSparOpReprMat, TestSparOpReprMatSortRowsAndCols) {
   RunTestSparOpReprMatSortRowsAndColsCase(1, 1);
   RunTestSparOpReprMatSortRowsAndColsCase(1, 5);
@@ -632,7 +599,6 @@ TEST(TestSparOpReprMat, TestSparOpReprMatSortRowsAndCols) {
   RunTestSparOpReprMatSortRowsAndColsCase(5, 5);
   RunTestSparOpReprMatSortRowsAndColsCase(20, 20);
 }
-
 
 TEST(TestSparOpReprMat, TestSparOpReprMatCalcRowAndColCoefs) {
   auto coef1 = RandCoefRepr();
@@ -658,7 +624,6 @@ TEST(TestSparOpReprMat, TestSparOpReprMatCalcRowAndColCoefs) {
   EXPECT_EQ(spar_mat.TryCatchColCommonDivisorCoef(4), kIdCoefRepr);
 }
 
-
 void RunTestSparOpReprMatRowLinCmbCase1(void) {
   SparOpReprMat spar_mat(1, 1);
   auto cmb = spar_mat.CalcRowLinCmb(0);
@@ -669,7 +634,6 @@ void RunTestSparOpReprMatRowLinCmbCase1(void) {
   cmb = spar_mat.CalcRowLinCmb(0);
   EXPECT_EQ(cmb, CoefReprVec({}));
 }
-
 
 void RunTestSparOpReprMatRowLinCmbCase2(void) {
   SparOpReprMat spar_mat(2, 2);
@@ -707,7 +671,6 @@ void RunTestSparOpReprMatRowLinCmbCase2(void) {
   EXPECT_EQ(cmb, CoefReprVec({kNullCoefRepr}));
 }
 
-
 void RunTestSparOpReprMatRowLinCmbCase3(void) {
   SparOpReprMat spar_mat(3, 2);
   auto cmb = spar_mat.CalcRowLinCmb(2);
@@ -737,7 +700,6 @@ void RunTestSparOpReprMatRowLinCmbCase3(void) {
   EXPECT_EQ(cmb, CoefReprVec({CoefRepr(1), CoefRepr(2)}));
 }
 
-
 void RunTestSparOpReprMatColLinCmbCase1(void) {
   SparOpReprMat spar_mat(1, 1);
   auto cmb = spar_mat.CalcColLinCmb(0);
@@ -748,7 +710,6 @@ void RunTestSparOpReprMatColLinCmbCase1(void) {
   cmb = spar_mat.CalcColLinCmb(0);
   EXPECT_EQ(cmb, CoefReprVec({}));
 }
-
 
 void RunTestSparOpReprMatColLinCmbCase2(void) {
   SparOpReprMat spar_mat(2, 2);
@@ -786,7 +747,6 @@ void RunTestSparOpReprMatColLinCmbCase2(void) {
   EXPECT_EQ(cmb, CoefReprVec({kNullCoefRepr}));
 }
 
-
 void RunTestSparOpReprMatColLinCmbCase3(void) {
   SparOpReprMat spar_mat(2, 3);
   auto cmb = spar_mat.CalcColLinCmb(2);
@@ -816,7 +776,6 @@ void RunTestSparOpReprMatColLinCmbCase3(void) {
   EXPECT_EQ(cmb, CoefReprVec({CoefRepr(1), CoefRepr(2)}));
 }
 
-
 TEST(TestSparOpReprMat, TestSparOpReprMatRowAndColLinCmb) {
   RunTestSparOpReprMatRowLinCmbCase1();
   RunTestSparOpReprMatRowLinCmbCase2();
@@ -826,14 +785,12 @@ TEST(TestSparOpReprMat, TestSparOpReprMatRowAndColLinCmb) {
   RunTestSparOpReprMatColLinCmbCase3();
 }
 
-
 void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase1(void) {
   SparCoefReprMat coef_mat;
   SparOpReprMat op_mat;
   auto res = SparCoefReprMatSparOpReprMatIncompleteMulti(coef_mat, op_mat);
   EXPECT_EQ(res, SparOpReprMat());
 }
-
 
 void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase2(void) {
   SparCoefReprMat coef_mat(1, 1);
@@ -852,11 +809,10 @@ void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase2(void) {
   EXPECT_EQ(res, bchmk);
 }
 
-
 void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase3(void) {
   CoefRepr j(1);
   CoefRepr jp(2);
-  OpLabel s(1);
+  BasisOpLabel s(1);
 
   SparCoefReprMat coef_mat1(2, 4);
   SparOpReprMat op_mat1(4, 6);
@@ -905,13 +861,12 @@ void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase3(void) {
   EXPECT_EQ(res2, bchmk2);
 }
 
-
 void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase4(void) {
   CoefRepr j(1);
   CoefRepr k(2);
-  OpLabel sx(1);
-  OpLabel sy(2);
-  OpLabel sz(3);
+  BasisOpLabel sx(1);
+  BasisOpLabel sy(2);
+  BasisOpLabel sz(3);
 
   SparCoefReprMat coef_mat1(4, 5);
   SparOpReprMat op_mat1(5, 6);
@@ -964,7 +919,6 @@ void RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase4(void) {
   EXPECT_EQ(res2, bchmk2);
 }
 
-
 TEST(TestSparOpReprMat, TestSparCoefReprMatSparOpReprMatIncompleteMulti) {
   RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase1();
   RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase2();
@@ -972,14 +926,12 @@ TEST(TestSparOpReprMat, TestSparCoefReprMatSparOpReprMatIncompleteMulti) {
   RunTestSparCoefReprMatSparOpReprMatIncompleteMultiCase4();
 }
 
-
 void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase1(void) {
   SparCoefReprMat coef_mat;
   SparOpReprMat op_mat;
   auto res = SparOpReprMatSparCoefReprMatIncompleteMulti(op_mat, coef_mat);
   EXPECT_EQ(res, SparOpReprMat());
 }
-
 
 void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase2(void) {
   SparCoefReprMat coef_mat(1, 1);
@@ -998,11 +950,10 @@ void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase2(void) {
   EXPECT_EQ(res, bchmk);
 }
 
-
 void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase3(void) {
   CoefRepr j(1);
   CoefRepr jp(2);
-  OpLabel s(1);
+  BasisOpLabel s(1);
 
   SparOpReprMat op_mat(4, 4);
   SparCoefReprMat coef_mat(4, 2);
@@ -1027,13 +978,12 @@ void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase3(void) {
   EXPECT_EQ(res, bchmk);
 }
 
-
 void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase4(void) {
   CoefRepr j(1);
   CoefRepr k(2);
-  OpLabel sx(1);
-  OpLabel sy(2);
-  OpLabel sz(3);
+  BasisOpLabel sx(1);
+  BasisOpLabel sy(2);
+  BasisOpLabel sz(3);
 
   SparOpReprMat op_mat(4, 5);
   SparCoefReprMat coef_mat(5, 4);
@@ -1060,14 +1010,12 @@ void RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase4(void) {
   EXPECT_EQ(res, bchmk);
 }
 
-
 TEST(TestSparOpReprMat, TestSparOpReprMatSparCoefReprMatIncompleteMulti) {
   RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase1();
   RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase2();
   RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase3();
   RunTestSparOpReprMatSparCoefReprMatIncompleteMultiCase4();
 }
-
 
 void RunTestSparOpReprMatRowCompresserCase1(void) {
   SparOpReprMat m1(1, 1), m2(1, 1);
@@ -1085,7 +1033,6 @@ void RunTestSparOpReprMatRowCompresserCase1(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase2(void) {
   OpRepr a(1), b(2), c(3), d(4);
   SparOpReprMat m1(2, 1), m2(1, 2);
@@ -1099,7 +1046,6 @@ void RunTestSparOpReprMatRowCompresserCase2(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatRowCompresserCase3(void) {
   OpRepr a(1), b(2);
@@ -1118,7 +1064,6 @@ void RunTestSparOpReprMatRowCompresserCase3(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase4(void) {
   OpRepr a(1), b(2), c(3);
   SparOpReprMat m1(2, 1);
@@ -1135,7 +1080,6 @@ void RunTestSparOpReprMatRowCompresserCase4(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatRowCompresserCase5(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
@@ -1158,7 +1102,6 @@ void RunTestSparOpReprMatRowCompresserCase5(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase6(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
   SparOpReprMat m1(3, 1);
@@ -1180,7 +1123,6 @@ void RunTestSparOpReprMatRowCompresserCase6(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase7(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
   SparOpReprMat m1(3, 1), m2(1, 3);
@@ -1199,7 +1141,6 @@ void RunTestSparOpReprMatRowCompresserCase7(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatRowCompresserCase8(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
@@ -1221,7 +1162,6 @@ void RunTestSparOpReprMatRowCompresserCase8(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase9(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
   SparOpReprMat m1(3, 2), m2(1, 3);
@@ -1241,7 +1181,6 @@ void RunTestSparOpReprMatRowCompresserCase9(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatRowCompresserCase10(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5), alpha_d(1, 4), beta_e(2, 5);
@@ -1264,10 +1203,9 @@ void RunTestSparOpReprMatRowCompresserCase10(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase11(void) {
   CoefRepr j(1), k(2);
-  OpLabel sx = 1, sy = 2, sz = 3;
+  BasisOpLabel sx = 1, sy = 2, sz = 3;
   SparOpReprMat m1(5, 1), m2(4, 5);
   m1.SetElem(0, 0, OpRepr(j, sx));
   m1.SetElem(1, 0, OpRepr(j, sy));
@@ -1297,7 +1235,6 @@ void RunTestSparOpReprMatRowCompresserCase11(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatRowCompresserCase12(void) {
   OpRepr s(1);
   SparOpReprMat m1(2, 2), m2(2, 2);
@@ -1313,7 +1250,6 @@ void RunTestSparOpReprMatRowCompresserCase12(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 TEST(TestSparOpReprMat, TestSparOpReprMatRowCompresser) {
   RunTestSparOpReprMatRowCompresserCase1();
   RunTestSparOpReprMatRowCompresserCase2();
@@ -1328,7 +1264,6 @@ TEST(TestSparOpReprMat, TestSparOpReprMatRowCompresser) {
   RunTestSparOpReprMatRowCompresserCase11();
   RunTestSparOpReprMatRowCompresserCase12();
 }
-
 
 void RunTestSparOpReprMatColCompresserCase1(void) {
   SparOpReprMat m1(1, 1), m2(1, 1);
@@ -1346,7 +1281,6 @@ void RunTestSparOpReprMatColCompresserCase1(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase2(void) {
   OpRepr a(1), b(2), c(3), d(4);
   SparOpReprMat m1(1, 2), m2(2, 1);
@@ -1360,7 +1294,6 @@ void RunTestSparOpReprMatColCompresserCase2(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatColCompresserCase3(void) {
   OpRepr a(1), b(2);
@@ -1376,7 +1309,6 @@ void RunTestSparOpReprMatColCompresserCase3(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase4(void) {
   OpRepr a(1), b(2), c(3);
   SparOpReprMat m1(1, 2), m2(2, 1), bchmk_m1(1, 1), bchmk_m2(1, 1);
@@ -1390,7 +1322,6 @@ void RunTestSparOpReprMatColCompresserCase4(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatColCompresserCase5(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
@@ -1410,7 +1341,6 @@ void RunTestSparOpReprMatColCompresserCase5(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase6(void) {
   OpRepr a(1), b(2), c(3), d(4), e(5);
   SparOpReprMat m1(1, 3), m2(3, 1), bchmk_m1(1, 2), bchmk_m2(2, 1);
@@ -1429,10 +1359,9 @@ void RunTestSparOpReprMatColCompresserCase6(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase7(void) {
-  CoefLabel alp = 1, bet = 2;
-  OpLabel a = 1, b = 2, c = 3, d = 4, e = 5;
+  CNumberLabel alp = 1, bet = 2;
+  BasisOpLabel a = 1, b = 2, c = 3, d = 4, e = 5;
   SparOpReprMat m1(2, 3), m2(3, 1), bchmk_m1(2, 2), bchmk_m2(2, 1);
   m1.SetElem(0, 0, OpRepr(alp, a));
   m1.SetElem(0, 1, OpRepr(a));
@@ -1449,7 +1378,6 @@ void RunTestSparOpReprMatColCompresserCase7(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 void RunTestSparOpReprMatColCompresserCase8(void) {
   OpRepr s(1);
@@ -1481,10 +1409,9 @@ void RunTestSparOpReprMatColCompresserCase8(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase9(void) {
-  CoefLabel j1 = 1, j2 = 2;
-  OpLabel s = 1;
+  CNumberLabel j1 = 1, j2 = 2;
+  BasisOpLabel s = 1;
   SparOpReprMat m1(1, 3), m2(3, 6), bchmk_m1(1, 2), bchmk_m2(2, 6);
   m1.SetElem(0, 0, kIdOpRepr);
   m1.SetElem(0, 1, OpRepr(j1, s));
@@ -1508,10 +1435,9 @@ void RunTestSparOpReprMatColCompresserCase9(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase10(void) {
-  CoefLabel j = 1, k = 2;
-  OpLabel sx = 1, sy = 2, sz = 3;
+  CNumberLabel j = 1, k = 2;
+  BasisOpLabel sx = 1, sy = 2, sz = 3;
   SparOpReprMat m1(1, 5), m2(5, 6), bchmk_m1(1, 4), bchmk_m2(4, 6);
   m1.SetElem(0, 0, kIdOpRepr);
   m1.SetElem(0, 1, OpRepr(j, sx));
@@ -1543,7 +1469,6 @@ void RunTestSparOpReprMatColCompresserCase10(void) {
   EXPECT_EQ(m2, bchmk_m2);
 }
 
-
 void RunTestSparOpReprMatColCompresserCase11(void) {
   OpRepr s(1);
   SparOpReprMat m1(2, 2), m2(2, 2);
@@ -1558,7 +1483,6 @@ void RunTestSparOpReprMatColCompresserCase11(void) {
   EXPECT_EQ(m1, bchmk_m1);
   EXPECT_EQ(m2, bchmk_m2);
 }
-
 
 TEST(TestSparOpReprMat, TestSparOpReprMatColCompresser) {
   RunTestSparOpReprMatColCompresserCase1();

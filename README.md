@@ -27,7 +27,7 @@ UltraDMRG offers the following key features:
 
 As a demonstration of the performance of UltraDMRG,
 we conducted a benchmark comparing the performance of UltraDMRG with ITensor(C++).
-Specifically, we on focused on comparing the DMRG sweep time using both packages.
+Specifically, we focused on comparing the DMRG sweep time using both packages.
 The test model is the $4 \times 16$ Hubbard cylinder at a doping level of 1/8,
 and we maintain a kept state dimension of $D=2000$ with incorporating $U(1)\times U(1)$ symmetry.
 

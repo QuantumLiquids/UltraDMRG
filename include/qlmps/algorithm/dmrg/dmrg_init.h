@@ -19,7 +19,7 @@
 #include "qlmps/one_dim_tn/mps_all.h"                          //FiniteMPS
 #include "qlmps/algorithm/finite_vmps_sweep_params.h"  //FiniteVMPSSweepParams
 #include "qlmps/algorithm/vmps/vmps_init.h"                    //CheckAndUpdateBoundaryMPSTensors
-#include "qlmps/one_dim_tn/mat_repr_mpo.h"                     //MatReprMPO
+#include "qlmps/one_dim_tn/mpo/mat_repr_mpo.h"                     //MatReprMPO
 #include "qlmps/algorithm/dmrg/operator_io.h"                  //Gen
 #include "qlmps/algorithm/dmrg/dmrg_impl.h"
 namespace qlmps {

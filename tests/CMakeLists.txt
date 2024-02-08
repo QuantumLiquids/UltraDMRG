@@ -203,6 +203,11 @@ add_unittest(test_mpogen
         "test_one_dim_tn/test_mpogen/test_mpogen.cc"
         "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
 )
+add_unittest(test_impo_gen
+        "test_one_dim_tn/test_mpogen/test_impogen.cc"
+        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
+)
+
 
 ## Test algorithms
 ## Test simulation case parameters parser.

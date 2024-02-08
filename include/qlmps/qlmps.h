@@ -24,6 +24,7 @@
 // MPO and its generator
 #include "qlmps/one_dim_tn/mpo/mpo.h"                              // MPO
 #include "qlmps/one_dim_tn/mpo/mpogen/mpogen.h"                    // MPOGenerator
+#include "qlmps/one_dim_tn/mpo/mpogen/impo_gen.h"
 // Algorithms
 #include "qlmps/algorithm/vmps/vmps_all.h"                         // TwoSiteFiniteVMPS, SingleSiteFiniteVMPS
 #include "qlmps/algorithm/tdvp/tdvp_evolve_params.h"               // TwoSiteFiniteTDVP

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 /*
-* Author: Rongyang Sun <sun-rongyang@outlook.com>
+* Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2019-10-29 15:35
 * 
 * Description: QuantumLiquids/UltraDMRG project. Algebra of MPO's coefficient and operator.
@@ -8,13 +8,12 @@
 #ifndef QLMPS_ONE_DIM_TN_MPO_MPOGEN_COEF_OP_ALG_H
 #define QLMPS_ONE_DIM_TN_MPO_MPOGEN_COEF_OP_ALG_H
 
-#include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/sparse_mat.h"
-
 #include <vector>
 #include <algorithm>
 #include <iostream>
 #include <map>
 #include <assert.h>
+#include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/sparse_mat.h"
 
 #ifdef Release
 #define NDEBUG
@@ -28,22 +27,24 @@ template<typename VecT>
 VecT ConcatenateTwoVec(const VecT &, const VecT &);
 
 
-// Label of coefficient.
-using CoefLabel = long;
+// Label of c-number.
+using CNumberLabel = long;
 
-const CoefLabel kIdCoefLabel = 0;     // Coefficient label for identity 1.
+const CNumberLabel kIdCoefLabel = 0;     // Coefficient label for identity 1.
 
 
-// Representation of coefficient.
+/**
+ * Represent coefficient as a summation of c-numbers which are represented as labels.
+ */
 class CoefRepr {
 
  public:
   CoefRepr(void) : coef_label_list_() {}
 
-  CoefRepr(const CoefLabel &coef_label) :
+  CoefRepr(const CNumberLabel &coef_label) :
       coef_label_list_{coef_label} {}
 
-  CoefRepr(const std::vector<CoefLabel> &coef_label_list) :
+  CoefRepr(const std::vector<CNumberLabel> &coef_label_list) :
       coef_label_list_(coef_label_list) {}
 
   CoefRepr(const CoefRepr &coef_repr) :
@@ -62,7 +63,7 @@ class CoefRepr {
     return *this;
   }
 
-  std::vector<CoefLabel> GetCoefLabelList(void) const {
+  std::vector<CNumberLabel> GetCoefLabelList(void) const {
     return coef_label_list_;
   }
 
@@ -123,7 +124,7 @@ class CoefRepr {
     if (coef_label_list_.size() == 0) {
       return "0";
     } else if (coef_label_list_.size() == 1) {
-      CoefLabel coef_label = coef_label_list_[0];
+      CNumberLabel coef_label = coef_label_list_[0];
       if (coef_label == kIdCoefLabel) {
         return "1";
       } else {
@@ -133,7 +134,7 @@ class CoefRepr {
     } else {
       std::string symbol_string = "(";
       for (size_t i = 0; i < coef_label_list_.size(); i++) {
-        const CoefLabel coef_label = coef_label_list_[1];
+        const CNumberLabel coef_label = coef_label_list_[1];
         if (coef_label == kIdCoefLabel) {
           symbol_string += "1";
         } else {
@@ -151,7 +152,7 @@ class CoefRepr {
   }
 
  private:
-  std::vector<CoefLabel> coef_label_list_;
+  std::vector<CNumberLabel> coef_label_list_;
 };
 
 const CoefRepr kNullCoefRepr = CoefRepr();            // Coefficient representation for null coefficient.
@@ -160,11 +161,8 @@ const CoefRepr kIdCoefRepr = CoefRepr(kIdCoefLabel);  // Coefficient representat
 using CoefReprVec = std::vector<CoefRepr>;
 
 
-// Label of operator.
-using OpLabel = long;
-
-const OpLabel kIdOpLabel = 0;         // Coefficient label for identity id.
-
+// label of basis operators
+using BasisOpLabel = long;
 
 // Representation of operator.
 class SparOpReprMat;    // Forward declaration.
@@ -183,17 +181,17 @@ class OpRepr {
  public:
   OpRepr(void) : op_label_coef_repr_map_() {}
 
-  OpRepr(const OpLabel op_label) {
+  OpRepr(const BasisOpLabel op_label) {
     op_label_coef_repr_map_.insert(std::make_pair(op_label, kIdCoefRepr));
   }
 
-  OpRepr(const CoefRepr &coef_repr, const OpLabel op_label) {
+  OpRepr(const CoefRepr &coef_repr, const BasisOpLabel op_label) {
     op_label_coef_repr_map_.insert(std::make_pair(op_label, coef_repr));
   }
 
   OpRepr(
       const std::vector<CoefRepr> &coef_reprs,
-      const std::vector<OpLabel> &op_labels) {
+      const std::vector<BasisOpLabel> &op_labels) {
     for (size_t i = 0; i < op_labels.size(); ++i) {
       auto poss_it = op_label_coef_repr_map_.find(op_labels[i]);
       if (poss_it == op_label_coef_repr_map_.end()) {
@@ -209,8 +207,8 @@ class OpRepr {
     op_label_coef_repr_map_ = rhs.op_label_coef_repr_map_;
   }
 
-  OpRepr(const std::vector<OpLabel> &op_labels) :
-      OpRepr(CoefReprVec(op_labels.size(), kIdCoefRepr), op_labels) {}
+  OpRepr(const std::vector<BasisOpLabel> &single_op_labels) :
+      OpRepr(CoefReprVec(single_op_labels.size(), kIdCoefRepr), single_op_labels) {}
 
   std::vector<CoefRepr> GetCoefReprList(void) const {
     std::vector<CoefRepr> coef_repr_list;
@@ -221,13 +219,25 @@ class OpRepr {
     return coef_repr_list;
   }
 
-  std::vector<OpLabel> GetOpLabelList(void) const {
-    std::vector<OpLabel> op_label_list;
+  std::vector<BasisOpLabel> GetOpLabelList(void) const {
+    std::vector<BasisOpLabel> op_label_list;
     op_label_list.reserve(op_label_coef_repr_map_.size());
     for (auto iter = op_label_coef_repr_map_.cbegin(); iter != op_label_coef_repr_map_.cend(); iter++) {
       op_label_list.push_back(iter->first);
     }
     return op_label_list;
+  }
+
+  // Assignment operator
+  OpRepr &operator=(const OpRepr &rhs) {
+    if (this != &rhs) {
+      op_label_coef_repr_map_ = rhs.op_label_coef_repr_map_;
+    }
+    return *this;
+  }
+
+  bool operator<(const OpRepr &rhs) const {
+    return op_label_coef_repr_map_ < rhs.op_label_coef_repr_map_;
   }
 
   bool operator==(const OpRepr &rhs) const {
@@ -239,7 +249,7 @@ class OpRepr {
   }
 
   OpRepr &operator+=(const OpRepr &rhs) {
-    const std::map<OpLabel, CoefRepr> &rhs_op_lable_coef_repr_map = rhs.GetOpLabelCoefReprMap_();
+    const std::map<BasisOpLabel, CoefRepr> &rhs_op_lable_coef_repr_map = rhs.GetOpLabelCoefReprMap_();
     for (auto iter = rhs_op_lable_coef_repr_map.cbegin();
          iter != rhs_op_lable_coef_repr_map.cend();
          iter++) {
@@ -333,11 +343,11 @@ class OpRepr {
   }
 
  private:
-  const std::map<OpLabel, CoefRepr> &GetOpLabelCoefReprMap_(void) const {
+  const std::map<BasisOpLabel, CoefRepr> &GetOpLabelCoefReprMap_(void) const {
     return op_label_coef_repr_map_;
   }
 
-  std::string OpLabelToString_(OpLabel label) const {
+  std::string OpLabelToString_(BasisOpLabel label) const {
     if (label == kIdCoefLabel) {
       return "Id";
     } else {
@@ -350,7 +360,7 @@ class OpRepr {
     }
   }
 
-  std::map<OpLabel, CoefRepr> op_label_coef_repr_map_;
+  std::map<BasisOpLabel, CoefRepr> op_label_coef_repr_map_;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const OpRepr &op_repr) {
@@ -359,7 +369,6 @@ inline std::ostream &operator<<(std::ostream &os, const OpRepr &op_repr) {
 }
 
 const OpRepr kNullOpRepr = OpRepr();          // Operator representation for null operator.
-const OpRepr kIdOpRepr = OpRepr(kIdOpLabel);  // Operator representation for identity operator.
 
 using OpReprVec = std::vector<OpRepr>;
 
@@ -381,7 +390,7 @@ inline std::pair<CoefRepr, OpRepr> SeparateCoefAndBase(const OpRepr &op_repr) {
       }
     }
     auto res_op_repr = op_repr;
-    for (std::map<OpLabel, CoefRepr>::iterator iter = res_op_repr.op_label_coef_repr_map_.begin();
+    for (std::map<BasisOpLabel, CoefRepr>::iterator iter = res_op_repr.op_label_coef_repr_map_.begin();
          iter != res_op_repr.op_label_coef_repr_map_.end();
          iter++) {
       iter->second = kIdCoefRepr;

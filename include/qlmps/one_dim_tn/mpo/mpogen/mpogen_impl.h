@@ -36,9 +36,19 @@ template<typename TenT>
 void AddOpToCentMpoTen(TenT *, const TenT &, const size_t, const size_t);
 
 template<typename TenElemT, typename QNT>
+std::vector<OpRepr> GenIdOpReprs(const SiteVec<TenElemT, QNT> &site_vec,
+                                 LabelConvertor<QLTensor<TenElemT, QNT>> &op_label_convertor) {
+  std::vector<OpRepr> id_op_reprs;
+  id_op_reprs.reserve(site_vec.size);
+  for (const auto &id_op : site_vec.id_ops) {
+    id_op_reprs.push_back(OpRepr(op_label_convertor.Convert(id_op)));
+  }
+  return id_op_reprs;
+}
+
+template<typename TenElemT, typename QNT>
 MPOGenerator<TenElemT, QNT>::MPOGenerator(const SiteVec<TenElemT, QNT> &site_vec)
     :MPOGenerator(site_vec, site_vec.sites[0].GetQNSct(0).GetQn() - site_vec.sites[0].GetQNSct(0).GetQn()) {}
-
 /**
 Create a MPO generator. Create a MPO generator using the sites of the system
 which is described by a SiteVec.
@@ -56,22 +66,16 @@ MPOGenerator<TenElemT, QNT>::MPOGenerator(
 ) : N_(site_vec.size),
     site_vec_(site_vec),
     zero_div_(zero_div),
-    fsm_(site_vec.size) {
+    id_op_vector_(site_vec.id_ops),
+    coef_label_convertor_(TenElemT(1)),
+    op_label_convertor_(),  //note here the construction order is quite tricky
+    fsm_(site_vec.size, GenIdOpReprs(site_vec, op_label_convertor_)) {
   pb_out_vector_.reserve(N_);
   pb_in_vector_.reserve(N_);
   for (size_t i = 0; i < N_; ++i) {
     pb_out_vector_.emplace_back(site_vec.sites[i]);
     pb_in_vector_.emplace_back(InverseIndex(site_vec.sites[i]));
   }
-  id_op_vector_ = site_vec.id_ops;
-  op_label_convertor_ = LabelConvertor<QLTensorT>(id_op_vector_[0]);
-  std::vector<OpLabel> id_op_label_vector;
-  for (auto iter = id_op_vector_.begin(); iter < id_op_vector_.end(); iter++) {
-    id_op_label_vector.push_back(op_label_convertor_.Convert(*iter));
-  }
-  fsm_.ReplaceIdOpLabels(id_op_label_vector);
-
-  coef_label_convertor_ = LabelConvertor<TenElemT>(TenElemT(1));
 }
 
 /**
@@ -387,14 +391,14 @@ std::vector<size_t> MPOGenerator<TenElemT, QNT>::SortSparOpReprMatColsByQN_(
     const QLTensorVec &label_op_mapping) {
   std::vector<std::pair<QNT, size_t>> rvb_qn_dim_pairs;
   std::vector<size_t> transposed_idxs;
-  for (size_t y = 0; y < op_repr_mat.cols; ++y) {
+  for (size_t col = 0; col < op_repr_mat.cols; ++col) {
     bool has_ntrvl_op = false;
     QNT col_rvb_qn(zero_div_);
-    for (size_t x = 0; x < op_repr_mat.rows; ++x) {
-      auto elem = op_repr_mat(x, y);
+    for (size_t row = 0; row < op_repr_mat.rows; ++row) {
+      auto elem = op_repr_mat(row, col);
       if (elem != kNullOpRepr) {
         auto rvb_qn = CalcTgtRvbQN_(
-            x, y, elem, label_op_mapping, trans_vb
+            row, col, elem, label_op_mapping, trans_vb
         );
         if (!has_ntrvl_op) {
           col_rvb_qn = rvb_qn;
@@ -405,7 +409,7 @@ std::vector<size_t> MPOGenerator<TenElemT, QNT>::SortSparOpReprMatColsByQN_(
             if (qn_dim.first == rvb_qn) {
               qn_dim.second += 1;
               auto beg_it = transposed_idxs.begin();
-              transposed_idxs.insert(beg_it + offset, y);
+              transposed_idxs.insert(beg_it + offset, col);
               has_qn = true;
               break;
             } else {
@@ -415,7 +419,7 @@ std::vector<size_t> MPOGenerator<TenElemT, QNT>::SortSparOpReprMatColsByQN_(
           if (!has_qn) {
             rvb_qn_dim_pairs.push_back(std::make_pair(rvb_qn, 1));
             auto beg_it = transposed_idxs.begin();
-            transposed_idxs.insert(beg_it + offset, y);
+            transposed_idxs.insert(beg_it + offset, col);
           }
         } else {
           assert(rvb_qn == col_rvb_qn);

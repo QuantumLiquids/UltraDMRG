@@ -3,14 +3,11 @@
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2019-05-14 10:26
 *
-* Description: GraceQ/mps2 project. Unittests for MPO generation, focus on the most generic AddTerm API.
+* Description: QuantumLiquids/mps project. Unittests for MPO generation, focus on the most generic AddTerm API.
 */
-#include "qlmps/qlmps.h"
-#include "qlten/qlten.h"
-#include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/coef_op_alg.h"
-#include "../../testing_utils.h"
 
 #include "gtest/gtest.h"
+#include "qlmps/qlmps.h"
 
 using namespace qlmps;
 using namespace qlten;
@@ -28,6 +25,9 @@ using DSiteVec = SiteVec<QLTEN_Double, QNT>;
 using ZSiteVec = SiteVec<QLTEN_Complex, QNT>;
 using DMPOGenerator = MPOGenerator<QLTEN_Double, QNT>;
 using ZMPOGenerator = MPOGenerator<QLTEN_Complex, QNT>;
+
+const BasisOpLabel kIdOpLabel = 0;                 // Coefficient label for identity id.
+const OpRepr kIdOpRepr = OpRepr(kIdOpLabel);  // Operator representation for identity operator.
 
 struct TestMpoGenerator : public testing::Test {
   IndexT phys_idx_out = IndexT({
@@ -165,8 +165,8 @@ TEST_F(TestMpoGenerator, TestAddTermCase4) {
 }
 
 TEST_F(TestMpoGenerator, TestAddTermCase5) {
-  CoefLabel j1 = 1, j2 = 2;
-  OpLabel s = 1;
+  CNumberLabel j1 = 1, j2 = 2;
+  BasisOpLabel s = 1;
   OpRepr op_s(s);
   SparOpReprMat bchmk_m0(1, 2), bchmk_m1(2, 4), bchmk_m2(4, 2), bchmk_m3(2, 1);
   bchmk_m0.SetElem(0, 0, kIdOpRepr);
@@ -214,8 +214,8 @@ TEST_F(TestMpoGenerator, TestAddTermCase6) {
   mpo_generator.AddTerm(K, {zsz, zsz}, {1, 2});
   auto fsm = mpo_generator.GetFSM();
 
-  CoefLabel j = 1, k = 2;
-  OpLabel sx = 1, sy = 2, sz = 3;
+  CNumberLabel j = 1, k = 2;
+  BasisOpLabel sx = 1, sy = 2, sz = 3;
   SparOpReprMat bchmk_m0(1, 4), bchmk_m1(4, 4), bchmk_m2(4, 1);
   bchmk_m0.SetElem(0, 0, OpRepr({k, j}, {sx, sx}));
   bchmk_m0.SetElem(0, 1, OpRepr(j, sy));
