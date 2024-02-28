@@ -33,14 +33,14 @@ class iFSM {
       FSMNode ready_node = FSMNode(site, kFSMReadyStatIdx);
       FSMNode next_ready_node = FSMNode(site + 1, kFSMReadyStatIdx);
 
-      std::map<OpRepr, FSMNode> link_from_ready_to_ready;
+      std::map < OpRepr, FSMNode > link_from_ready_to_ready;
       link_from_ready_to_ready.insert(std::make_pair(id_ops[site], next_ready_node));
       fsm_nn_links[ready_node] = link_from_ready_to_ready;
 
       FSMNode final_node = FSMNode(site, kFSMFinalStatIdx);
       FSMNode next_final_node = FSMNode(site + 1, kFSMFinalStatIdx);
 
-      std::map<OpRepr, FSMNode> link_from_final_to_final;
+      std::map < OpRepr, FSMNode > link_from_final_to_final;
       link_from_final_to_final.insert(std::make_pair(id_ops[site], next_final_node));
       fsm_nn_links[final_node] = link_from_final_to_final;
     }
@@ -146,7 +146,7 @@ inline void iFSM::AddPath(const size_t head_site,
   fsm_paths_.push_back(fsm_path);
 }
 
-SparOpReprMatVec iFSM::GenMatRepr(void) const {
+inline SparOpReprMatVec iFSM::GenMatRepr(void) const {
   SparOpReprMatVec fsm_mat_repr;
   for (size_t site = 0; site < unit_cell_site_num_; site++) {
     fsm_mat_repr.push_back(CastToMatRepr_(site));
@@ -172,7 +172,7 @@ inline SparOpReprMatVec iFSM::GenCompressedMatRepr(const bool show_matrix) const
   return comp_mat_repr;
 }
 
-SparOpReprMat iFSM::CastToMatRepr_(const size_t site) const {
+inline SparOpReprMat iFSM::CastToMatRepr_(const size_t site) const {
   const auto &fsm_nn_links = fsm_nn_links_set_.at(site);
   size_t mat_rows = mid_stat_nums_[site] + 2;
   size_t mat_cols = mid_stat_nums_[(site + 1) % unit_cell_site_num_] + 2;
