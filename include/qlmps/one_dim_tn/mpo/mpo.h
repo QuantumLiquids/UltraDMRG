@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
 /*
-* Author: Rongyang Sun <sun-rongyang@outlook.com>
-* Creation Date: 2020-10-19 14:19
+* Author: Haoxin Wang <wanghaoxin1996@gmail.com>
+* Creation Date: 2024/02/14
 *
-* Description: QuantumLiquids/UltraDMRG project. Matrix product operator (MPO).
+* Description: QuantumLiquids/UltraDMRG project. General matrix product operator (MPO) class.
 */
 
 /**
 @file mpo.h
-@brief Matrix product operator (MPO) class.
+@brief General matrix product operator (MPO) class.
 */
 #ifndef QLMPS_ONE_DIM_TN_MPO_MPO_H
 #define QLMPS_ONE_DIM_TN_MPO_MPO_H

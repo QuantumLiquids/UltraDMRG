@@ -12,8 +12,9 @@
 namespace qlmps {
 using namespace qlten;
 
+/// Constructor
 template<typename TenElemT, typename QNT>
-iMPOGenerator<TenElemT, QNT>::iMPOGenerator(
+inline iMPOGenerator<TenElemT, QNT>::iMPOGenerator(
     const SiteVec<TenElemT, QNT> &site_vec) :
     unit_cell_size_(site_vec.size()),
     site_vec_(site_vec),
@@ -24,7 +25,65 @@ iMPOGenerator<TenElemT, QNT>::iMPOGenerator(
     ifsm_(site_vec.size(), GenIdOpReprs(site_vec, op_label_convertor_)) {}
 
 template<typename TenElemT, typename QNT>
-void iMPOGenerator<TenElemT, QNT>::EvaluateMatReprQN_(const SparOpReprMatVec &mat_repr_sym_mpo) {
+inline void iMPOGenerator<TenElemT, QNT>::AddTerm(const TenElemT coef,
+                                           const QLTensorVec &phys_ops,
+                                           const std::vector<size_t> &phys_ops_sites,
+                                           const QLTensorVec &inst_ops,
+                                           const std::vector<std::vector<size_t>> &inst_ops_sites_set) {
+  assert(phys_ops.size() >= 2);
+  assert(phys_ops.size() == phys_ops_sites.size());
+  assert(
+      (inst_ops.size() == phys_ops.size() - 1) ||
+          (inst_ops.size() == phys_ops.size())
+  );
+  assert(inst_ops_sites_set.size() == inst_ops.size());
+
+  QLTensorVec local_ops;
+  std::vector<size_t> local_ops_sites;
+  for (size_t i = 0; i < phys_ops.size() - 1; ++i) {
+    local_ops.push_back(phys_ops[i]);
+    local_ops_sites.push_back(phys_ops_sites[i]);
+    if (inst_ops_sites_set == kNullUintVecVec) { // what's this?
+      for (size_t j = phys_ops_sites[i] + 1; j < phys_ops_sites[i + 1]; ++j) {
+        local_ops.push_back(inst_ops[i]);
+        local_ops_sites.push_back(j);
+      }
+    } else {
+      for (auto inst_op_idx : inst_ops_sites_set[i]) {
+        local_ops.push_back(inst_ops[i]);
+        local_ops_sites.push_back(inst_op_idx);
+      }
+    }
+  }
+
+  // Deal with the last physical operator and possible insertion operator tail
+  // string.
+  local_ops.push_back(phys_ops.back());
+  local_ops_sites.push_back(phys_ops_sites.back());
+  if (inst_ops.size() == phys_ops.size()) {
+    if (inst_ops_sites_set == kNullUintVecVec) {
+      for (size_t j = phys_ops_sites.back(); j < unit_cell_size_; ++j) {
+        local_ops.push_back(inst_ops.back());
+        local_ops_sites.push_back(j);
+      }
+    } else {
+      for (auto inst_op_idx : inst_ops_sites_set.back()) {
+        local_ops.push_back(inst_ops.back());
+        local_ops_sites.push_back(inst_op_idx);
+      }
+    }
+  }
+
+  AddTerm(coef, local_ops, local_ops_sites);
+}
+
+template<typename TenElemT, typename QNT>
+inline MPO<QLTensor<TenElemT, QNT>> iMPOGenerator<TenElemT, QNT>::Gen() {
+
+}
+
+template<typename TenElemT, typename QNT>
+inline void iMPOGenerator<TenElemT, QNT>::EvaluateMatReprQN_(const SparOpReprMatVec &mat_repr_sym_mpo) {
   QNT some_qn = site_vec_.sites[0].GetQNSct(0).GetQn();
   QNT zero_qn = some_qn + (-some_qn);
   auto label_op_mapping = op_label_convertor_.GetLabelObjMapping();
@@ -57,11 +116,11 @@ void iMPOGenerator<TenElemT, QNT>::EvaluateMatReprQN_(const SparOpReprMatVec &ma
     valid_rows = valid_cols;
     mat_rep_qns_[(site + 1) % unit_cell_size_].first = mat_rep_qns_[site].second;
   }
-
 }
 
+// Helper
 template<typename T>
-std::vector<size_t> ReorderVecToSameElemNearBy(std::vector<T> &data) {
+inline std::vector<size_t> ReorderVecToSameElemNearBy(std::vector<T> &data) {
   std::unordered_map<T, std::vector<size_t>> element_indices;
 
   // Collect indices for each unique element
@@ -83,7 +142,7 @@ std::vector<size_t> ReorderVecToSameElemNearBy(std::vector<T> &data) {
 }
 
 template<typename TenElemT, typename QNT>
-std::vector<size_t> iMPOGenerator<TenElemT, QNT>::SortSymOpMatColsByQN_(SparOpReprMat &sym_op_mat,
+inline std::vector<size_t> iMPOGenerator<TenElemT, QNT>::SortSymOpMatColsByQN_(SparOpReprMat &sym_op_mat,
                                                                         size_t site) {
   MatrixColQNT &col_qns = mat_rep_qns_[site].second;
   for (auto &qn : col_qns) {
@@ -94,6 +153,37 @@ std::vector<size_t> iMPOGenerator<TenElemT, QNT>::SortSymOpMatColsByQN_(SparOpRe
   return transposed_idxs;
 }
 
-}//qlmps
+template<typename TenElemT, typename QNT>
+inline OpReprVec iMPOGenerator<TenElemT, QNT>::TransferHamiltonianTermToConsecutiveOpRepr_(
+    TenElemT coef,
+    QLTensorVec local_ops,
+    std::vector<size_t> local_ops_sites
+) {
+  assert(local_ops_sites.size() == local_ops.size());
+  assert(std::is_sorted(local_ops_sites.cbegin(), local_ops_sites.cend()));
+  auto coef_label = coef_label_convertor_.Convert(coef);
+  auto ntrvl_ops_idxs_head = local_ops_sites.front();
+  auto ntrvl_ops_idxs_tail = local_ops_sites.back();
+  OpReprVec ntrvl_ops_reprs;
+  for (size_t i = ntrvl_ops_idxs_head; i <= ntrvl_ops_idxs_tail; ++i) {
+    auto poss_it = std::find(local_ops_sites.cbegin(), local_ops_sites.cend(), i);
+    if (poss_it != local_ops_sites.cend()) {     // Nontrivial operator
+      auto local_op_loc =
+          poss_it - local_ops_sites.cbegin();    // Location of the local operator in the local operators list.
+      auto op_label = op_label_convertor_.Convert(local_ops[local_op_loc]);
+      if (i == ntrvl_ops_idxs_tail) { //coefficient add to last site
+        ntrvl_ops_reprs.push_back(OpRepr(coef_label, op_label));
+      } else {
+        ntrvl_ops_reprs.push_back(OpRepr(op_label));
+      }
+    } else {
+      auto id_op_label = op_label_convertor_.Convert(id_op_vector_[i]);
+      ntrvl_ops_reprs.push_back(OpRepr(id_op_label));
+    }
+  }
+  return ntrvl_ops_reprs;
+}
+
+}/* qlmps */
 
 #endif //QLMPS_ONE_DIM_TN_MPO_MPOGEN_IMPOGEN_IMPL_H

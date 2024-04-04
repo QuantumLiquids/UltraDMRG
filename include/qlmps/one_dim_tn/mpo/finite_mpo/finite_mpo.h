@@ -3,7 +3,7 @@
 * Author: Haoxin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2022/5/11
 *
-* Description:
+* Description: QuantumLiquids/UltraDMRG project. Finite MPO Class.
 */
 
 /**
@@ -81,8 +81,9 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
  public:
   using LocalTenT = QLTensor<TenElemT, QNT>;
 
-  FiniteMPO(const size_t size) : TenVec<LocalTenT>(size), center_(kUncentralizedCenterIdx), tens_cano_type_(size) {
-  }
+  FiniteMPO(const size_t size) : TenVec<LocalTenT>(size),
+                                 center_(kUncentralizedCenterIdx),
+                                 tens_cano_type_(size) {}
 
 //  FiniteMPO(const FiniteMPO &rhs): TenVec<LocalTenT>(rhs) {
 ////    for(size_t i = 0; i < rhs.size(); i++) {
@@ -275,7 +276,7 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
     }
   }
 
-  double Normlize() {
+  double Normalize() {
     double norm2;
     if (center_ != kUncentralizedCenterIdx) {
       const size_t old_center = center_;

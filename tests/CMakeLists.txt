@@ -7,7 +7,7 @@
 # 
 # Set MKL compile flags and link flags.
 
-if (APPLE)
+if (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     if (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
         set(MATH_LIB_COMPILE_FLAGS "-I$ENV{MKLROOT}/include")
         #Need test
@@ -23,6 +23,18 @@ if (APPLE)
         # Note as of Intel oneAPI 2021.2, "source /opt/intel/oneapi/compiler/latest/env/vars.sh"
         set(MATH_LIB_LINK_FLAGS $ENV{MKLROOT}/lib/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/libmkl_intel_thread.a $ENV{MKLROOT}/lib/libmkl_core.a -L$ENV{MKLROOT}/lib -L$ENV{CMPLR_ROOT}/mac/compiler/lib/ -Wl, -rpath $ENV{CMPLR_ROOT}/mac/compiler/lib/libiomp5.dylib -liomp5 -lpthread -lm -ldl)
     endif ()
+elseif (APPLE)
+    #ARM
+    add_definitions(-DUSE_OPENBLAS)
+    set(BLA_VENDOR OpenBLAS)
+    #        FIND_PACKAGE(BLAS REQUIRED)
+    #        FIND_PACKAGE(LAPACK REQUIRED)
+    set(OpenBLAS_ROOT "/opt/homebrew/opt/openblas/")
+    set(Lapack_ROOT "/opt/homebrew/opt/lapack")
+    set(OpenBLAS_INCLUDE_DIRS "${OpenBLAS_ROOT}/include")
+    set(OpenBLAS_LIBRARIES "${OpenBLAS_ROOT}/lib/libblas.dylib")
+    set(MATH_LIB_COMPILE_FLAGS -I${OpenBLAS_INCLUDE_DIRS} -pthread)
+    set(MATH_LIB_LINK_FLAGS ${OpenBLAS_LIBRARIES} ${OpenBLAS_ROOT}/lib/liblapack.dylib -lm -lpthread -ldl -fopenmp -lclapack)
 elseif (UNIX)
     #UNIX include APPLE, but we except it here
     if (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
