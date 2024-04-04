@@ -419,17 +419,29 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_
 #ifdef QLMPS_MPI_TIMING_MODE
     slave_hamil_multiply_state_computation_timer.Restart();
 #endif
-    auto multiplication_res = std::vector<Tensor>(num_terms);
-    auto pmultiplication_res = std::vector<Tensor *>(num_terms);
-    const std::vector<TenElemT> &coefs = std::vector<TenElemT>(num_terms, TenElemT(1.0));
+//    // First multiplication, finally summation
+//    auto multiplication_res = std::vector<Tensor>(num_terms);
+//    auto pmultiplication_res = std::vector<Tensor *>(num_terms);
+//    const std::vector<TenElemT> &coefs = std::vector<TenElemT>(num_terms, TenElemT(1.0));
+//    for (size_t i = 0; i < num_terms; i++) {
+//      Tensor temp1;
+//      Contract(&block_site_ops_[i], &state, {{2, 3}, {0, 1}}, &temp1);
+//      Contract(&temp1, &site_block_ops_[i], {{2, 3}, {0, 1}}, &multiplication_res[i]);
+//      pmultiplication_res[i] = &multiplication_res[i];
+//    }
+//    LinearCombine(coefs, pmultiplication_res, TenElemT(0.0), &sub_sum);
+
+    // multiplication and summation at the same time, to reduce memory.
     for (size_t i = 0; i < num_terms; i++) {
-      Tensor temp1;
+      Tensor temp1, multi_res;
       Contract(&block_site_ops_[i], &state, {{2, 3}, {0, 1}}, &temp1);
-      Contract(&temp1, &site_block_ops_[i], {{2, 3}, {0, 1}}, &multiplication_res[i]);
-      pmultiplication_res[i] = &multiplication_res[i];
+      Contract(&temp1, &site_block_ops_[i], {{2, 3}, {0, 1}}, &multi_res);
+      if (i == 0) {
+        sub_sum = multi_res;
+      } else {
+        sub_sum += multi_res;
+      }
     }
-    //TODO: optimize the summation
-    LinearCombine(coefs, pmultiplication_res, TenElemT(0.0), &sub_sum);
 #ifdef QLMPS_MPI_TIMING_MODE
     slave_hamil_multiply_state_computation_timer.Suspend();
 #endif

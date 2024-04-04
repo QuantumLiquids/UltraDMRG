@@ -52,14 +52,14 @@ void RunTestDMRGCase(
     const double benmrk_e0, const double precision,
     mpi::communicator &world
 ) {
-  size_t start_flops = flop;
+  size_t start_flop = flop;
   Timer dmrg_timer("dmrg");
   auto e0 = FiniteDMRG(mps, mat_repr_mpo, sweep_params, world);
   double elapsed_time = dmrg_timer.Elapsed();
-  size_t end_flops = flop;
-  double Gflops_s = (end_flops - start_flops) * 1.e-9 / elapsed_time;
-  std::cout << "flops = " << end_flops - start_flops << std::endl;
-  std::cout << "Gflops/s = " << Gflops_s << std::endl;
+  size_t end_flop = flop;
+  double Gflops = (end_flop - start_flop) * 1.e-9 / elapsed_time;
+  std::cout << "flop = " << end_flop - start_flop << std::endl;
+  std::cout << "Gflops = " << Gflops << std::endl;
   if (world.rank() == kMasterRank) {
     EXPECT_NEAR(e0, benmrk_e0, precision);
     EXPECT_TRUE(mps.empty());
