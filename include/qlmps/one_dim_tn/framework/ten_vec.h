@@ -14,26 +14,23 @@
 #ifndef QLMPS_ONE_DIM_TN_FRAMEWORK_TEN_VEC_H
 #define QLMPS_ONE_DIM_TN_FRAMEWORK_TEN_VEC_H
 
-
 #include "qlmps/one_dim_tn/framework/duovector.h"    // DuoVector
 #include "qlten/qlten.h"    // QLTensor, bfread, bfwrite
 
 #include <string>     // string
 #include <fstream>    // ifstream
 
-
 namespace qlmps {
 using namespace qlten;
-
 
 /**
 A fix size tensor vector.
 
 @tparam TenT Type of the element tensor.
 */
-template <typename TenT>
+template<typename TenT>
 class TenVec : public DuoVector<TenT> {
-public:
+ public:
 
   //No default constructor
 
@@ -64,8 +61,17 @@ public:
   void LoadTen(const size_t idx, const std::string &file) {
     this->alloc(idx);
     std::ifstream ifs(file, std::ifstream::binary);
+    if (!ifs.is_open()) {
+      throw std::runtime_error("Error opening file: " + file);
+    }
     ifs >> (*this)[idx];
+    if (ifs.fail()) {
+      throw std::runtime_error("Error reading file: " + file);
+    }
     ifs.close();
+    if (ifs.fail()) {
+      throw std::runtime_error("Error closing file: " + file);
+    }
   }
 
   /**
