@@ -120,7 +120,19 @@ class FSM {
     assert(id_ops.size() == phys_site_num);
   }
 
-//  FSM(void) : FSM(0) {}
+  // consider to delete following two constructor in the future, because they are not used in MPO construction.
+  FSM(void) : FSM(0) {}
+  FSM(const size_t phys_site_num) :
+      phys_site_num_(phys_site_num),
+      fsm_site_num_(phys_site_num + 1),
+      mid_stat_nums_(phys_site_num + 1, 0),
+      has_readys_(phys_site_num + 1, false),
+      has_finals_(phys_site_num + 1, false),
+      id_ops_(phys_site_num_) {
+    for (size_t i = 0; i < id_ops_.size(); i++) {
+      id_ops_[i] = OpRepr(0);
+    }
+  }
 
   size_t phys_size(void) const { return phys_site_num_; }
 
@@ -204,7 +216,7 @@ inline SparOpReprMatVec FSM::GenMatRepr(void) const {
     auto mat_cols = fsm_site_dims[i + 1];
     fsm_mat_repr.push_back(SparOpReprMat(mat_rows, mat_cols));
   }
-  for (auto &fsm_path : fsm_paths_) {
+  for (auto &fsm_path: fsm_paths_) {
     CastFSMPathToMatRepr_(fsm_path, final_stat_dim_idxs, fsm_mat_repr);
   }
   return fsm_mat_repr;

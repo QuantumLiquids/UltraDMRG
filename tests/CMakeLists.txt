@@ -260,6 +260,10 @@ add_unittest(test_finite_dmrg
         "test_algorithm/test_finite_dmrg.cpp"
         "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
 )
+add_unittest(test_fermion_two_site_update_finite_vmps
+        "test_algorithm/test_fermion_two_site_update_finite_vmps.cc"
+        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
+)
 # Test two site TDVP
 add_unittest(test_two_site_finite_tdvp
         "test_algorithm/test_two_site_finite_tdvp.cpp"

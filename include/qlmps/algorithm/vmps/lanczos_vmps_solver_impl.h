@@ -134,7 +134,7 @@ LanczosRes<TenT> LanczosSolver(
   std::vector<QLTEN_Double> N(params.max_iterations, 0.0);
 
   // Initialize Lanczos iteration.
-  pinit_state->Normalize();
+  pinit_state->QuasiNormalize();
   bases[0] = pinit_state;
 
 #ifdef QLMPS_TIMING_MODE
@@ -149,6 +149,13 @@ LanczosRes<TenT> LanczosSolver(
 
   TenT temp_scalar_ten;
   auto base_dag = Dag(*bases[0]);
+  TenT fermion_sign_projector;
+  if constexpr (TenT::IsFermionic()) {
+    fermion_sign_projector = TenT({base_dag.GetIndex(0), pinit_state->GetIndex(0)});
+    for (size_t i = 0; i < fermion_sign_projector.GetShape()[0]; i++) {
+      fermion_sign_projector({i, i}) = 1;
+    }
+  }
   Contract(
       last_mat_mul_vec_res, &base_dag,
       energy_measu_ctrct_axes,
@@ -162,7 +169,15 @@ LanczosRes<TenT> LanczosSolver(
   // Lanczos iterations.
   while (true) {
     m += 1;
-    auto gamma = last_mat_mul_vec_res;
+    TenT *gamma;
+    if constexpr (TenT::IsFermionic()) {
+      gamma = new TenT();
+      Contract(&fermion_sign_projector, last_mat_mul_vec_res, {{0}, {0}}, gamma);
+      delete last_mat_mul_vec_res;
+      last_mat_mul_vec_res = nullptr;
+    } else {
+      gamma = last_mat_mul_vec_res;
+    }
     if (m == 1) {
       LinearCombine({-a[m - 1]}, {bases[m - 1]}, 1.0, gamma);
     } else {
@@ -173,7 +188,7 @@ LanczosRes<TenT> LanczosSolver(
           gamma
       );
     }
-    auto norm_gamma = gamma->Normalize();
+    auto norm_gamma = gamma->QuasiNormalize();
     QLTEN_Double eigval;
     QLTEN_Double *eigvec = nullptr;
     if (norm_gamma == 0.0) {
@@ -222,8 +237,8 @@ LanczosRes<TenT> LanczosSolver(
     auto energy0_new = eigval;
     if (
         ((energy0 - energy0_new) < params.error) ||
-        (m == eff_ham_eff_dim) ||
-        (m == params.max_iterations - 1)
+            (m == eff_ham_eff_dim) ||
+            (m == params.max_iterations - 1)
         ) {
       TridiagGsSolver(a, b, m + 1, eigval, eigvec, 'V');
       energy0 = energy0_new;
@@ -309,14 +324,11 @@ inline void TridiagGsSolver(
   auto stev_err_msg = "?stev error.";
   auto stev_jobz_err_msg = "jobz must be  'N' or 'V', but ";
   switch (jobz) {
-    case 'N':
-      ldz = 1;
+    case 'N':ldz = 1;
       break;
-    case 'V':
-      ldz = n;
+    case 'V':ldz = n;
       break;
-    default:
-      std::cout << stev_jobz_err_msg << jobz << std::endl;
+    default:std::cout << stev_jobz_err_msg << jobz << std::endl;
       std::cout << stev_err_msg << std::endl;
       exit(1);
   }
@@ -332,14 +344,11 @@ inline void TridiagGsSolver(
     exit(1);
   }
   switch (jobz) {
-    case 'N':
-      break;
-    case 'V':
-      gs_vec = new double[n];
+    case 'N':break;
+    case 'V':gs_vec = new double[n];
       for (size_t i = 0; i < n; ++i) { gs_vec[i] = z[i * n]; }
       break;
-    default:
-      std::cout << stev_jobz_err_msg << jobz << std::endl;
+    default:std::cout << stev_jobz_err_msg << jobz << std::endl;
       std::cout << stev_err_msg << std::endl;
       exit(1);
   }
