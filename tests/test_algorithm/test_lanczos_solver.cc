@@ -123,55 +123,26 @@ TEST_F(TestLanczos, TestTwoSiteLanczosSolver
   auto dblock_random_mat = new double[D * D];
   RandRealSymMat(dblock_random_mat, D
   );
-  for (
-      size_t i = 0;
-      i < D;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < D;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        dlblock({
-                    i, k, j}) = dblock_random_mat[(
-            i * D
-                + j)];
-        drblock({
-                    j, k, i}) = dblock_random_mat[(
-            i * D
-                + j)];
+  for (size_t i = 0; i < D; ++i) {
+    for (size_t j = 0; j < D; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        dlblock({i, k, j}) = dblock_random_mat[(i * D + j)];
+        drblock({j, k, i}) = dblock_random_mat[(i * D + j)];
       }
     }
   }
-  delete[]
-      dblock_random_mat;
+  delete[] dblock_random_mat;
   auto dsite_random_mat = new double[d * d];
   RandRealSymMat(dsite_random_mat, d
   );
-  for (
-      size_t i = 0;
-      i < d;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < d;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        dlsite({
-                   k, i, j, k}) = dsite_random_mat[(
-            i * d
-                + j)];
+  for (size_t i = 0; i < d; ++i) {
+    for (size_t j = 0; j < d; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        dlsite({k, i, j, k}) = dsite_random_mat[(i * d + j)];
       }
     }
   }
-  delete[]
-      dsite_random_mat;
+  delete[]dsite_random_mat;
   auto drsite = DQLTensor(dlsite);
   auto pdinit_state = new DQLTensor({idx_Din, idx_dout, idx_dout, idx_Dout});
 
@@ -181,8 +152,7 @@ TEST_F(TestLanczos, TestTwoSiteLanczosSolver
       Random(qn0);
   LanczosParams lanczos_params(1.0E-9);
   RunTestTwoSiteLanczosSolverCase(
-      {
-          &dlblock, &dlsite, &drsite, &drblock},
+      {&dlblock, &dlsite, &drsite, &drblock},
       pdinit_state,
       lanczos_params
   );
@@ -206,65 +176,34 @@ TEST_F(TestLanczos, TestTwoSiteLanczosSolver
   auto zblock_random_mat = new QLTEN_Complex[D * D];
   RandCplxHerMat(zblock_random_mat, D
   );
-  for (
-      size_t i = 0;
-      i < D;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < D;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        zlblock({
-                    i, k, j}) = zblock_random_mat[(
-            i * D
-                + j)];
-        zrblock({
-                    j, k, i}) = zblock_random_mat[(
-            i * D
-                + j)];
+  for (size_t i = 0; i < D; ++i) {
+    for (size_t j = 0; j < D; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        zlblock({i, k, j}) = zblock_random_mat[(i * D + j)];
+        zrblock({j, k, i}) = zblock_random_mat[(i * D + j)];
       }
     }
   }
-  delete[]
-      zblock_random_mat;
+  delete[]zblock_random_mat;
   auto zsite_random_mat = new QLTEN_Complex[d * d];
   RandCplxHerMat(zsite_random_mat, d
   );
-  for (
-      size_t i = 0;
-      i < d;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < d;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        zlsite({
-                   k, i, j, k}) = zsite_random_mat[(
-            i * d
-                + j)];
+  for (size_t i = 0; i < d; ++i) {
+    for (size_t j = 0; j < d; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        zlsite({k, i, j, k}) = zsite_random_mat[(i * d + j)];
       }
     }
   }
-  delete[]
-      zsite_random_mat;
+  delete[]zsite_random_mat;
   auto zrsite = ZQLTensor(zlsite);
   auto pzinit_state = new ZQLTensor({idx_Din, idx_dout, idx_dout, idx_Dout});
 
 // Finish iteration when Lanczos error targeted.
   srand(0);
-  pzinit_state->
-      Random(qn0);
+  pzinit_state->Random(qn0);
   RunTestTwoSiteLanczosSolverCase(
-      {
-          &zlblock, &zlsite, &zrsite, &zrblock},
+      {&zlblock, &zlsite, &zrsite, &zrblock},
       pzinit_state,
       lanczos_params
   );
@@ -272,8 +211,7 @@ TEST_F(TestLanczos, TestTwoSiteLanczosSolver
 
 template<typename TenElemT, typename QNT>
 void RunTestSingleSiteLanczosSolverCase(
-    const std::vector<QLTensor<TenElemT, QNT> *
-    > &eff_ham,
+    const std::vector<QLTensor<TenElemT, QNT> *> &eff_ham,
     QLTensor<TenElemT, QNT> *pinit_state,
     const LanczosParams &lanczos_params
 ) {
@@ -294,19 +232,9 @@ void RunTestSingleSiteLanczosSolverCase(
   std::vector<size_t> tb_ctrct_axes2 = {1};
   auto eff_ham_ten = new TenT;
   Contract(eff_ham[0], eff_ham[1],
-           {
-               {
-                   1},
-               {
-                   0}}, eff_ham_ten);
-  InplaceContract(eff_ham_ten, eff_ham[2],
-                  {
-                      {
-                          4},
-                      {
-                          1}});
-  eff_ham_ten->Transpose({
-                             1, 2, 5, 0, 3, 4});
+           {{1}, {0}}, eff_ham_ten);
+  InplaceContract(eff_ham_ten, eff_ham[2], {{4}, {1}});
+  eff_ham_ten->Transpose({1, 2, 5, 0, 3, 4});
 
   auto dense_mat_dim = D * d * D;
   auto dense_mat_size = dense_mat_dim * dense_mat_dim;
@@ -316,27 +244,14 @@ void RunTestSingleSiteLanczosSolverCase(
   std::vector<std::pair<size_t, size_t>> eff_mat_coors_list;
   eff_mat_coors_list.
       reserve(dense_mat_size);
-  for (
-      size_t i = 0;
-      i < dense_mat_dim;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < dense_mat_dim;
-        ++j) {
-      eff_mat_coors_list.
-          emplace_back(std::make_pair(i, j)
+  for (size_t i = 0; i < dense_mat_dim; ++i) {
+    for (size_t j = 0; j < dense_mat_dim; ++j) {
+      eff_mat_coors_list.emplace_back(std::make_pair(i, j)
       );
     }
   }
   size_t idx = 0;
-  for (
-    auto &coors
-      :
-      GenAllCoors(eff_ham_ten
-                      ->
-                          GetShape()
-      )) {
+  for (auto &coors : GenAllCoors(eff_ham_ten->GetShape())) {
     auto eff_mat_coors = eff_mat_coors_list[idx];
     if (eff_mat_coors.first > eff_mat_coors.second) {
       dense_mat[idx] = 0.0;
@@ -375,26 +290,11 @@ TEST_F(TestLanczos, TestSingleSiteLanczosSolver
   auto dblock_random_mat = new double[D * D];
   RandRealSymMat(dblock_random_mat, D
   );
-  for (
-      size_t i = 0;
-      i < D;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < D;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        dlblock({
-                    i, k, j}) = dblock_random_mat[(
-            i * D
-                + j)];
-        drblock({
-                    j, k, i}) = dblock_random_mat[(
-            i * D
-                + j)];
+  for (size_t i = 0; i < D; ++i) {
+    for (size_t j = 0; j < D; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        dlblock({i, k, j}) = dblock_random_mat[(i * D + j)];
+        drblock({j, k, i}) = dblock_random_mat[(i * D + j)];
       }
     }
   }
@@ -403,22 +303,10 @@ TEST_F(TestLanczos, TestSingleSiteLanczosSolver
   auto dsite_random_mat = new double[d * d];
   RandRealSymMat(dsite_random_mat, d
   );
-  for (
-      size_t i = 0;
-      i < d;
-      ++i) {
-    for (
-        size_t j = 0;
-        j < d;
-        ++j) {
-      for (
-          size_t k = 0;
-          k < dh;
-          ++k) {
-        dlsite({
-                   k, i, j, k}) = dsite_random_mat[(
-            i * d
-                + j)];
+  for (size_t i = 0; i < d; ++i) {
+    for (size_t j = 0; j < d; ++j) {
+      for (size_t k = 0; k < dh; ++k) {
+        dlsite({k, i, j, k}) = dsite_random_mat[(i * d + j)];
       }
     }
   }

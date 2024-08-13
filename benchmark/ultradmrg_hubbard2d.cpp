@@ -9,7 +9,6 @@ using TenElemT = qlten::QLTEN_Double;
 
 using qlten::QLTensor;
 
-namespace plain_hubbard {
 using U1U1QN = qlten::special_qn::U1U1QN;
 using QNSctT = qlten::QNSector<U1U1QN>;
 using IndexT = qlten::Index<U1U1QN>;
@@ -21,18 +20,101 @@ const IndexT pb_outF = IndexT({   //QNSctT( U1U1QN(N, Sz), degeneracy )
                                   QNSctT(U1U1QN(1, -1), 1),
                                   QNSctT(U1U1QN(0, 0), 1)
                               },
-                              qlten::QLTenIndexDirType::OUT
-);
+                              qlten::TenIndexDirType::OUT
+);  //Fermionic local Hilbert space
 const IndexT pb_inF = qlten::InverseIndex(pb_outF);
 
-}//plain_hubbard
-namespace plain_hubbard {
 //Fermionic operators
-extern Tensor sz, sp, sm, id;
-extern Tensor f, bupc, bupa, bdnc, bdna;
-extern Tensor bupcF, bupaF, Fbdnc, Fbdna;
-extern Tensor cupccdnc, cdnacupa, Uterm, nf, nfsquare, nup, ndn;
-void OperatorInitial();
+Tensor sz, sp, sm, id;
+Tensor f, bupc, bupa, bdnc, bdna;
+Tensor bupcF, bupaF, Fbdnc, Fbdna;
+Tensor cupccdnc, cdnacupa, Uterm, nf, nfsquare, nup, ndn;
+void OperatorInitial() {
+  static bool initialized = false;
+  if (!initialized) {
+    sz = Tensor({pb_inF, pb_outF});
+    sp = Tensor({pb_inF, pb_outF});
+    sm = Tensor({pb_inF, pb_outF});
+    id = Tensor({pb_inF, pb_outF});
+
+    f = Tensor({pb_inF, pb_outF}); //fermion's insertion operator
+
+    bupc = Tensor({pb_inF, pb_outF}); //hardcore boson, b_up^creation, used for JW transformation
+    bupa = Tensor({pb_inF, pb_outF}); //hardcore boson, b_up^annihilation
+    bdnc = Tensor({pb_inF, pb_outF}); //hardcore boson, b_down^creation
+    bdna = Tensor({pb_inF, pb_outF}); //hardcore boson, b_down^annihilation
+
+
+    bupcF = Tensor({pb_inF, pb_outF}); // matrix product of bupc * f
+    bupaF = Tensor({pb_inF, pb_outF});
+    Fbdnc = Tensor({pb_inF, pb_outF});
+    Fbdna = Tensor({pb_inF, pb_outF});
+
+    cupccdnc = Tensor({pb_inF, pb_outF}); // c_up^creation * c_down^creation=b_up^creation*b_down^creation*F
+
+    cdnacupa = Tensor({pb_inF, pb_outF}); // onsite pair, usually c_up*c_dn
+
+
+    Uterm = Tensor({pb_inF, pb_outF}); // Hubbard Uterm, nup*ndown
+
+    nf = Tensor({pb_inF, pb_outF}); // nup+ndown, fermion number
+
+    nfsquare = Tensor({pb_inF, pb_outF}); // nf^2
+    nup = Tensor({pb_inF, pb_outF}); // fermion number of spin up
+    ndn = Tensor({pb_inF, pb_outF}); // ndown
+
+    sz({1, 1}) = 0.5;
+    sz({2, 2}) = -0.5;
+    sp({1, 2}) = 1.0;
+    sm({2, 1}) = 1.0;
+    id({0, 0}) = 1;
+    id({1, 1}) = 1;
+    id({2, 2}) = 1;
+    id({3, 3}) = 1;
+
+    f({0, 0}) = 1;
+    f({1, 1}) = -1;
+    f({2, 2}) = -1;
+    f({3, 3}) = 1;
+
+    bupc({0, 2}) = 1;
+    bupc({1, 3}) = 1;
+    bdnc({0, 1}) = 1;
+    bdnc({2, 3}) = 1;
+    bupa({2, 0}) = 1;
+    bupa({3, 1}) = 1;
+    bdna({1, 0}) = 1;
+    bdna({3, 2}) = 1;
+
+    bupcF({0, 2}) = -1;
+    bupcF({1, 3}) = 1;
+    Fbdnc({0, 1}) = 1;
+    Fbdnc({2, 3}) = -1;
+    bupaF({2, 0}) = 1;
+    bupaF({3, 1}) = -1;
+    Fbdna({1, 0}) = -1;
+    Fbdna({3, 2}) = 1;
+
+    cupccdnc({0, 3}) = 1;
+    cdnacupa({3, 0}) = 1;
+
+    Uterm({0, 0}) = 1;
+
+    nf({0, 0}) = 2;
+    nf({1, 1}) = 1;
+    nf({2, 2}) = 1;
+
+    nfsquare({0, 0}) = 4;
+    nfsquare({1, 1}) = 1;
+    nfsquare({2, 2}) = 1;
+
+    nup({0, 0}) = 1;
+    nup({1, 1}) = 1;
+    ndn({0, 0}) = 1;
+    ndn({2, 2}) = 1;
+
+    initialized = true;
+  }
 }
 
 using namespace qlmps;
@@ -58,7 +140,6 @@ int main(int argc, char *argv[]) {
   qlten::hp_numeric::SetTensorManipulationThreads(14);
 
   double e0(0.0); //energy
-  using namespace plain_hubbard;
   OperatorInitial();
 
   const SiteVec<TenElemT, U1U1QN> sites = SiteVec<TenElemT, U1U1QN>(N, pb_outF);

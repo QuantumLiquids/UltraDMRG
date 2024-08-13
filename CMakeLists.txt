@@ -26,6 +26,7 @@ endif ()
 
 option(QLMPS_BUILD_UNITTEST "Build unittests for UltraDMRG." OFF)
 option(QLMPS_BUILD_PROFILER "Build profiler test cases for UltraDMRG." OFF)
+option(QLMPS_BUILD_BENCHMARK "Build benchmark on the speed of 2D Hubbard DMRG." OFF)
 
 # Advanced options.
 option(QLMPS_TIMING_MODE "Timing mode." OFF)
@@ -77,4 +78,12 @@ if (QLMPS_BUILD_PROFILER)
     find_path(PROFILER_INCLUDE_DIR "gperftools")
     find_library(LIBPROFILER_LIBRARY "libprofiler.a")
     add_subdirectory(profiler profiler)
+endif ()
+
+if (QLMPS_BUILD_BENCHMARK)
+    find_path(QLMPS_TENSOR_LIB_HEADER_PATH "qlten")
+    find_path(hptt_INCLUDE_DIR "hptt.h")
+    find_library(hptt_LIBRARY "libhptt.a")
+    enable_testing()
+    add_subdirectory(benchmark benchmark)
 endif ()
