@@ -8,7 +8,7 @@
 
 /**
 @file finite_mpo.h
-@brief
+@brief Finite MPO Class.
 */
 
 #ifndef QLMPS_ONE_DIM_TN_MPO_FINITE_MPO_FINITE_MPO_H
@@ -24,6 +24,10 @@ const size_t kMaxVariationSweeps = 10;
 const double kVariationConvergeTolerance = 1e-13;
 
 using MPOTenCanoType = MPSTenCanoType;
+
+//forward declaration
+template<typename TenElemT, typename QNT>
+class FiniteMPO;
 
 // MPO variation optimize params
 struct MpoVOptimizeParams {
@@ -51,10 +55,6 @@ struct MpoVOptimizeParams {
   std::string temp_path;
 };
 
-//forward declaration
-template<typename TenElemT, typename QNT>
-class FiniteMPO;
-
 template<typename TenElemT, typename QNT>
 void MpoProduct(
     const FiniteMPO<TenElemT, QNT> &mpo1,
@@ -74,8 +74,6 @@ inline std::string GenMPOTenName(const std::string &mpo_path, const size_t idx) 
       kMpoTenBaseName + std::to_string(idx) + "." + kQLTenFileSuffix;
 }
 
-using MPOTenCanoType = MPSTenCanoType;
-
 template<typename TenElemT, typename QNT>
 class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
  public:
@@ -85,20 +83,6 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
                                  center_(kUncentralizedCenterIdx),
                                  tens_cano_type_(size) {}
 
-//  FiniteMPO(const FiniteMPO &rhs): TenVec<LocalTenT>(rhs) {
-////    for(size_t i = 0; i < rhs.size(); i++) {
-////      (*this)[i] = rhs[i];
-////    }
-//    center_ = rhs.center_;
-//    tens_cano_type_ = rhs.tens_cano_type_;
-//  }
-
-//  FiniteMPO<TenElemT, QNT> &operator=(const FiniteMPO &rhs) {
-//    (*this) = rhs; //I hope this line calld the copy function of DuoVector
-//    center_ = rhs.center_;
-//    tens_cano_type_ = rhs.tens_cano_type_;
-//  }
-
   FiniteMPO(const MPO<LocalTenT> &mpo) : TenVec<LocalTenT>(mpo), center_(kUncentralizedCenterIdx),
                                          tens_cano_type_(mpo.size()) {}
 
@@ -106,10 +90,21 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
     return MPO<LocalTenT>(*this);
   }
 
+  FiniteMPO(const FiniteMPO &other) = default;
+
+  FiniteMPO &operator=(const FiniteMPO &) = default;
+
+  FiniteMPO &operator=(FiniteMPO &&rhs) {
+    TenVec<QLTensor<TenElemT, QNT>>::operator=(std::move(rhs));
+    center_ = rhs.center_;
+    tens_cano_type_ = std::move(rhs.tens_cano_type_);
+    rhs.center_ = -1;
+    rhs.tens_cano_type_ = std::vector<MPOTenCanoType>(tens_cano_type_.size(), MPOTenCanoType::NONE);
+    return *this;
+  }
+
   /**
    * Access to local tensor
-   * @param idx
-   * @return
    */
   LocalTenT &operator[](const size_t idx) {
     tens_cano_type_[idx] = MPSTenCanoType::NONE;
@@ -119,9 +114,6 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
 
   /**
    * Read-only access to local tensor.
-   *
-   * @param idx
-   * @return
    */
   const LocalTenT &operator[](const size_t idx) const {
     return DuoVector<LocalTenT>::operator[](idx);
@@ -129,11 +121,8 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
 
   /**
    * Access to the pointer to local tensor.
-   * @param idx
-   * @return
    */
   LocalTenT *&operator()(const size_t idx) {
-//    std::cout << "call () " << std::endl;
     tens_cano_type_[idx] = MPOTenCanoType::NONE;
     center_ = kUncentralizedCenterIdx;
     return DuoVector<LocalTenT>::operator()(idx);
@@ -145,7 +134,6 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
    * @return
    */
   const LocalTenT *operator()(const size_t idx) const {
-//    std::cout << "call const () " << std::endl;
     return DuoVector<LocalTenT>::operator()(idx);
   }
 
@@ -480,8 +468,6 @@ TenElemT FiniteMPO<TenElemT, QNT>::Trace() {
 /** Truncate when right canonicalize the tensor on site `site_idx`.
  *
  *
- * @tparam TenElemT
- * @tparam QNT
  * @param site_idx
  * @param trunc_err
  * @param Dmin

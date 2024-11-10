@@ -77,31 +77,7 @@ QLTensor<TenElemT, QNT> UpdateRenv(
 );
 
 template<typename TenElemT, typename QNT>
-void MpoSum(
-    const FiniteMPO<TenElemT, QNT> &input_mpo1,
-    const FiniteMPO<TenElemT, QNT> &input_mpo2,
-    FiniteMPO<TenElemT, QNT> &output_mpo
-) {
-  using Tensor = QLTensor<TenElemT, QNT>;
-  const size_t N = input_mpo1.size();
-  for (size_t i = 0; i < N; i++) {
-    if (output_mpo(i) != nullptr) {
-      delete output_mpo(i);
-    }
-    output_mpo(i) = new Tensor();
-  }
-
-  Expand(input_mpo1(0), input_mpo2(0), {3}, output_mpo(0));
-  Expand(input_mpo1(N - 1), input_mpo2(N - 1), {0}, output_mpo(N - 1));
-
-  for (size_t i = 1; i < N - 1; i++) {
-    Expand(input_mpo1(i), input_mpo2(i), {0, 3}, output_mpo(i));
-  }
-  return;
-}
-
-template<typename TenElemT, typename QNT>
-void MpoScale(
+void MpoAllScale(
     FiniteMPO<TenElemT, QNT> &mpo,
     const TenElemT factor
 ) {
@@ -112,39 +88,38 @@ void MpoScale(
 }
 
 template<typename TenElemT, typename QNT>
-void GenerateIdentityMPO(
-    const FiniteMPO<TenElemT, QNT> &sample_mpo, //e.g. Hamiltonian
-    FiniteMPO<TenElemT, QNT> &output_identity_mpo //output
+FiniteMPO<TenElemT, QNT> GenerateIdentityMPO(
+    const FiniteMPO<TenElemT, QNT> &sample_mpo //e.g. Hamiltonian
 ) {
   using Tensor = QLTensor<TenElemT, QNT>;
   const size_t N = sample_mpo.size();
-
+  FiniteMPO<TenElemT, QNT> identity(N);
   const Index<QNT> trivial_index_in = sample_mpo[0].GetIndexes()[0];
   const Index<QNT> trivial_index_out = InverseIndex(trivial_index_in);
   int ompth = hp_numeric::tensor_manipulation_num_threads;
 #pragma omp parallel for default(none) \
-                shared(output_identity_mpo, sample_mpo)\
+                shared(identity, sample_mpo)\
                 num_threads(ompth)\
                 schedule(static)
   for (size_t i = 0; i < N; i++) {
-    if (output_identity_mpo(i) != nullptr) {
-      delete output_identity_mpo(i);
-    }
-    Index<QNT> pb_out = sample_mpo[i].GetIndexes()[2];
-    Index<QNT> pb_in = sample_mpo[i].GetIndexes()[1];
-    output_identity_mpo(i) = new Tensor({trivial_index_in,
-                                         pb_in, pb_out,
-                                         trivial_index_out});
-    const size_t physical_dim = pb_in.dim();
+    Index<QNT> pb2 = sample_mpo[i].GetIndexes()[2];
+    Index<QNT> pb1 = sample_mpo[i].GetIndexes()[1];
+    identity(i) = new Tensor({trivial_index_in,
+                              pb1, pb2,
+                              trivial_index_out});
+    const size_t physical_dim = pb1.dim();
     for (size_t j = 0; j < physical_dim; j++) {
-      output_identity_mpo[i]({0, j, j, 0}) = TenElemT(1.0);
+      identity[i]({0, j, j, 0}) = TenElemT(1.0);
+    }
+    if (Tensor::IsFermionic() && pb1.GetDir() == OUT) {
+      identity[i].ActFermionPOps();
     }
   }
-  return;
+  return identity;
 }
 
 /**
- * mpo1 * mpo2, mpo1 above mpo2 bottom
+ * op1_mpo * mpo2, op1_mpo above mpo2 bottom
  * no compression
  * @tparam TenElemT
  * @tparam QNT
@@ -202,12 +177,12 @@ void MpoProduct(
  *            1         1
  */
 
-/** mpo1 * mpo2, mpo1 above mpo2 bottom
+/** op1_mpo * mpo2, op1_mpo above mpo2 bottom
  *  compression according the bond dimension, by variational method.
  *  two-site update
  *  The function assume the output_mpo offer a good initial MPO
  *  except its elements are pointer pointing to nullptr,
- *  in which case we will copy a mpo1 to output_mpo
+ *  in which case we will copy a op1_mpo to output_mpo
  *
  *  convergence are justified by the norm2
  *  Finally, the central of the output_mpo is put in site 1.
@@ -445,12 +420,12 @@ std::pair<size_t, double> MPOProductVariationalSingleStep(
 }
 
 /**
- * generate the left and right envs of 3 mpo tensor network. mpo0 is above mpo1 and mpo1 is above mpo2
+ * generate the left and right envs of 3 mpo tensor network. op0_mpo is above op1_mpo and op1_mpo is above mpo2
  * The data of environment tensors will dump to the disk.
  * For two site update so mpo[0] has no renv but mpo[1] has.
  * left_boundary = 0; right boundary = N-1.
  *
- * mpo0 should be dagged
+ * op0_mpo should be dagged
  * @tparam TenElemT
  * @tparam QNT
  * @param mpo0
@@ -522,7 +497,7 @@ QLTensor<TenElemT, QNT> UpdateRenv(
  * |          1
  * |          2
  * |          |
- * |----1 0---mpo1---3
+ * |----1 0---op1_mpo---3
  * |          |
  * |          1
  * |          2
