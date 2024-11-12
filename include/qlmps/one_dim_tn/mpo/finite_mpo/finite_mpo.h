@@ -278,7 +278,7 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
 
   TenElemT Trace();
 
-  size_t GetMaxBondDimension(void) const {
+  size_t GetMaxBondDim(void) const {
     size_t D = 1;
     for (size_t i = 0; i < (*this).size() - 1; i++) {
       D = std::max(D, (*this)[i].GetShape()[3]);
@@ -421,7 +421,6 @@ void FiniteMPO<TenElemT, QNT>::Truncate(const QLTEN_Double trunc_err,
   auto N = this->size();
   assert(N >= 2);
   this->Centralize(N - 1);
-//  double norm2 = (*this)(N - 1)->Normalize();
 
   QLTEN_Double actual_trunc_err;
   size_t D;

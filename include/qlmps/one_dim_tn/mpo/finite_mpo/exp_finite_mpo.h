@@ -58,7 +58,7 @@ std::pair<double, FiniteMPO<TenElemT, QNT>> ExpFiniteMPO(
   const size_t N = hamiltonian.size();
   Timer taylor_expansion_timer("taylor_expansion");
 
-  const size_t bond_dimension_of_H = hamiltonian.GetMaxBondDimension();
+  const size_t bond_dimension_of_H = hamiltonian.GetMaxBondDim();
 
   std::cout << "Bond dimension of hamiltonian : "
             << bond_dimension_of_H << std::endl;
@@ -80,8 +80,9 @@ std::pair<double, FiniteMPO<TenElemT, QNT>> ExpFiniteMPO(
     MPOT tmp_mpo(N);
     std::string mpo_Hn_path = GenHnMpoPath(mpo_path_prefix, n, tau);
     if (n > 1) {
-      if (std::pow(bond_dimension_of_H, n) <= Dmax) {
+      if (bond_dimension_of_H * taylor_term.GetMaxBondDim() <= Dmax) {
         MpoProduct(taylor_term, m_tau_h, tmp_mpo);
+        tmp_mpo.Truncate(1e-16, 1, tmp_mpo.GetMaxBondDim());
       } else { //need compress
         tmp_mpo.Load(mpo_Hn_path);
 
@@ -97,8 +98,8 @@ std::pair<double, FiniteMPO<TenElemT, QNT>> ExpFiniteMPO(
     taylor_term.Dump(mpo_Hn_path);
 
     TenElemT t = taylor_term.Trace();
-    size_t D_Hn = taylor_term.GetMaxBondDimension();
-    if (density_matrix.GetMaxBondDimension() > Dmax) {
+    size_t D_Hn = taylor_term.GetMaxBondDim();
+    if (density_matrix.GetMaxBondDim() > Dmax) {
       density_matrix.Truncate(1e-16, Dmax, Dmax);
     }
     double power_n_elapsed_time = power_n_timer.Elapsed();
@@ -118,7 +119,7 @@ std::pair<double, FiniteMPO<TenElemT, QNT>> ExpFiniteMPO(
   density_matrix.Centralize(0);
   double norm2 = density_matrix[0].Normalize();
   std::cout << "The series expansion was finished. The bond dimension of rho(tau) = "
-            << density_matrix.GetMaxBondDimension()
+            << density_matrix.GetMaxBondDim()
             << std::endl;
   taylor_expansion_timer.PrintElapsed();
   return std::make_pair(norm2, density_matrix);

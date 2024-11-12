@@ -144,8 +144,7 @@ void MpoProduct(
 
   for (size_t i = 0; i < N; i++) {
     Tensor temp;
-    Contract(mpo1(i), mpo2(i), {{1},
-                                {2}}, &temp);
+    Contract(mpo1(i), mpo2(i), {{1}, {2}}, &temp);
     temp.FuseIndex(0, 3);
     temp.FuseIndex(2, 4);
     temp.Transpose({1, 3, 2, 0});
@@ -188,8 +187,6 @@ void MpoProduct(
  *  Finally, the central of the output_mpo is put in site 1.
  *  The output MPO is NOT normalized.
  *
- * @tparam TenElemT
- * @tparam QNT
  * @param mpo1
  * @param mpo2
  * @param output_mpo
