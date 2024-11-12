@@ -97,10 +97,10 @@ FiniteMPO<TenElemT, QNT> GenerateIdentityMPO(
   const Index<QNT> trivial_index_in = sample_mpo[0].GetIndexes()[0];
   const Index<QNT> trivial_index_out = InverseIndex(trivial_index_in);
   int ompth = hp_numeric::tensor_manipulation_num_threads;
-#pragma omp parallel for default(none) \
-                shared(identity, sample_mpo)\
-                num_threads(ompth)\
-                schedule(static)
+//#pragma omp parallel for default(none) \
+//                shared(identity, sample_mpo, trivial_index_in)\
+//                num_threads(ompth)\
+//                schedule(static)
   for (size_t i = 0; i < N; i++) {
     Index<QNT> pb2 = sample_mpo[i].GetIndexes()[2];
     Index<QNT> pb1 = sample_mpo[i].GetIndexes()[1];

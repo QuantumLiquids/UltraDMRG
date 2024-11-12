@@ -41,7 +41,7 @@ inline std::string GenHnMpoPath(
  * @return (norm, density matrix) = exp(-tau * H)
  */
 template<typename TenElemT, typename QNT>
-FiniteMPO<TenElemT, QNT> ExpFiniteMPO(
+std::pair<double, FiniteMPO<TenElemT, QNT>> ExpFiniteMPO(
     const FiniteMPO<TenElemT, QNT> &hamiltonian,
     const double tau,
     const size_t max_taylor_order,
@@ -64,7 +64,7 @@ FiniteMPO<TenElemT, QNT> ExpFiniteMPO(
             << bond_dimension_of_H << std::endl;
   MPOT m_tau_h(hamiltonian); // minus tau times hamiltonian
   m_tau_h.Scale(-tau);
-  FiniteMPO<TenElemT, QNT> density_matrix = GenerateIndentiyMPO(hamiltonian);
+  FiniteMPO<TenElemT, QNT> density_matrix = GenerateIdentityMPO(hamiltonian);
   TenElemT t0 = density_matrix.Trace();
   std::cout << "power n = 0, Identity, Trace(0) : "
             << std::setprecision(7) << std::scientific << t0 << std::endl;
@@ -76,7 +76,6 @@ FiniteMPO<TenElemT, QNT> ExpFiniteMPO(
     CreatPath(temp_path);
   }
   for (size_t n = 1; n < max_taylor_order; n++) {
-    std::cout << "power n = " << n << std::endl;
     Timer power_n_timer("power_n");
     MPOT tmp_mpo(N);
     std::string mpo_Hn_path = GenHnMpoPath(mpo_path_prefix, n, tau);
