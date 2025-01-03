@@ -14,8 +14,8 @@ offering a user-friendly and accessible solution for researchers in this field.
 
 UltraDMRG offers the following key features:
 
-- [x] MPI parallelization of Density Matrix Renormalization Group
-- [x] MPI parallelization of MPS-based time-dependent variational principle algorithm
+- [x] MPI/CUDA parallelization of Density Matrix Renormalization Group
+- [x] MPI/CUDA parallelization of MPS-based time-dependent variational principle algorithm
 - [x] Finite-temperature calculation
 
 ## To-Do List
@@ -55,10 +55,11 @@ showcasing the sweep times, are presented in the accompanying figure.
 Please note that the project requires the following dependencies
 to be installed in order to build and run successfully:
 
-- C++17 Compiler
+- C++17 Compiler or above
 - CMake (version 3.12 or higher)
 - Intel MKL or OpenBlas
 - MPI
+- CUDA compiler, cuBlas, cuSolver, cuTensor2
 - Boost::serialization, Boost::mpi (version 1.74 or higher)
 - [QuantumLiquids/TensorToolkit](https://github.com/QuantumLiquids/TensorToolkit)
 - GoogleTest (if testing is required)
