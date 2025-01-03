@@ -15,7 +15,8 @@
 #define QLMPS_ALGORITHM_LANCZOS_SOLVER_EXPMV_IMPL_H
 
 #include "qlten/qlten.h"
-#include "qlten/utility/timer.h"                            // Timer
+#include "qlten/utility/timer.h"                           // Timer
+#include "qlmps/consts.h"                                  // exp
 #include "qlmps/algorithm/lanczos_params.h"                // LanczosParams, LanczosFree...
 #include "qlmps/algorithm/vmps/lanczos_vmps_solver_impl.h" // InplaceContract
 
@@ -34,7 +35,7 @@ inline void TridiagExpme1Solver(
     const std::vector<double> &b,
     const size_t n,
     const double step_length,
-    std::complex<double> *res
+    QLTEN_Complex *res
 );
 
 template <typename ElemType>
@@ -49,8 +50,6 @@ struct ExpmvRes {
   size_t iters; //dimension of Krylov space
   TenT *expmv;
 };
-
-
 
 /**
  * Obtain real time evolution on the given initial state.
@@ -81,7 +80,7 @@ ExpmvRes<TenT> LanczosExpmvSolver(
 
   ExpmvRes<TenT> expmv_res;
   std::vector<std::vector<size_t>> energy_measu_ctrct_axes;
-  if (pinit_state->Rank() ==3) {            // single site update
+  if (pinit_state->Rank() == 3) {            // single site update
     energy_measu_ctrct_axes = {{0, 1, 2}, {0, 1, 2}};
   } else if (pinit_state->Rank() == 4) {    // two site update
     energy_measu_ctrct_axes = {{0, 1, 2, 3}, {0, 1, 2, 3}};
@@ -107,32 +106,37 @@ ExpmvRes<TenT> LanczosExpmvSolver(
 
   QLTEN_Complex *combination_factor = new QLTEN_Complex[params.max_iterations];//combination of bases
   QLTEN_Complex *last_combination_factor = new QLTEN_Complex[params.max_iterations];
-  while(true) {
+  while (true) {
     m += 1;
-    TenT* gamma = last_mat_mul_vec_res;
-    if(m == 1) {
-      LinearCombine({-a[m-1]}, {bases[m-1]}, 1.0, gamma);
+    TenT *gamma = last_mat_mul_vec_res;
+    if (m == 1) {
+      LinearCombine({-a[m - 1]}, {bases[m - 1]}, 1.0, gamma);
     } else {
       LinearCombine(
-          {-a[m-1], -b[m-2]},
-          {bases[m-1], bases[m-2]},
+          {-a[m - 1], -b[m - 2]},
+          {bases[m - 1], bases[m - 2]},
           1.0,
           gamma
       );
     }
     QLTEN_Double norm_gamma = gamma->Normalize();
 
-
-    if(norm_gamma == 0.0) {
+    if (norm_gamma == 0.0) {
       expmv_res.iters = m;
-      if ( m == 1 ) { //initial state is just an eigenstate
+      if (m == 1) { //initial state is just an eigenstate
         expmv_res.expmv = new TenT();
-        std::complex<double> evolution_phase_factor {0.0, - step_length * a[0]};
-        (*expmv_res.expmv) = (initial_norm * std::exp( evolution_phase_factor )) * (*bases[0]);
+        QLTEN_Complex evolution_phase_factor{0.0, -step_length * a[0]};
+        (*expmv_res.expmv) = (initial_norm * qlmps::complex_exp(evolution_phase_factor)) * (*bases[0]);
       } else {
         TridiagExpme1Solver(a, b, m, step_length, combination_factor);
         expmv_res.expmv = new TenT(bases[0]->GetIndexes());
+#ifndef USE_GPU
         hp_numeric::VectorScale(combination_factor, m, initial_norm);
+#else
+        for(size_t i = 0; i < m; i++){
+          combination_factor[i] *= initial_norm;
+        }
+#endif
         LinearCombine(m, combination_factor, bases, QLTEN_Complex(0.0), expmv_res.expmv);
       }
       LanczosFree(combination_factor, bases, last_mat_mul_vec_res);
@@ -140,7 +144,7 @@ ExpmvRes<TenT> LanczosExpmvSolver(
       return expmv_res;
     }
 
-    b[m-1] = norm_gamma;
+    b[m - 1] = norm_gamma;
     bases[m] = gamma;
 
     last_mat_mul_vec_res = (*eff_ham_mul_state)(rpeff_ham, bases[m]);
@@ -155,15 +159,21 @@ ExpmvRes<TenT> LanczosExpmvSolver(
     );
     a[m] = Real(temp_scalar_ten());
 
-    TridiagExpme1Solver(a, b, m+1, step_length, combination_factor);
-    double distance = Distance(last_combination_factor, combination_factor, m+1);
-    if( distance < params.error ||
-        m == eff_ham_eff_dim    ||
+    TridiagExpme1Solver(a, b, m + 1, step_length, combination_factor);
+    double distance = Distance(last_combination_factor, combination_factor, m + 1);
+    if (distance < params.error ||
+        m == eff_ham_eff_dim ||
         m == params.max_iterations - 1
         ) {
       expmv_res.iters = m + 1;
       expmv_res.expmv = new TenT(bases[0]->GetIndexes());
+#ifndef USE_GPU
       hp_numeric::VectorScale(combination_factor, m + 1, initial_norm);
+#else
+      for(size_t i = 0; i < m+1; i++){
+        combination_factor[i] *= initial_norm;
+      }
+#endif
       LinearCombine(m + 1, combination_factor, bases, QLTEN_Complex(0.0), expmv_res.expmv);
       LanczosFree(combination_factor, bases, last_mat_mul_vec_res);
       delete[] last_combination_factor;
@@ -191,36 +201,35 @@ inline void TridiagExpme1Solver(
     const std::vector<double> &b,
     const size_t n,
     const double step_length,
-    std::complex<double> *res
-    ) {
-  using dcomplex = std::complex<double>;
-  double* d = (double*) malloc(n * sizeof(double));
+    QLTEN_Complex *res
+) {
+  double *d = (double *) malloc(n * sizeof(double));
   memcpy(d, a.data(), n * sizeof(double));
-  double* e = (double*) malloc(n * sizeof(double));
+  double *e = (double *) malloc(n * sizeof(double));
   memcpy(e, b.data(), (n - 1) * sizeof(double));
-  double* z = (double*) malloc(n * n * sizeof(double));
-  const char* stev_err_msg = "?stev error.";
+  double *z = (double *) malloc(n * n * sizeof(double));
+  const char *stev_err_msg = "?stev error.";
   auto info = LAPACKE_dstev(
-          LAPACK_ROW_MAJOR,
-          'V',
-          n,
-          d, e,
-          z,
-          n);
-  if(info != 0) {
+      LAPACK_ROW_MAJOR,
+      'V',
+      n,
+      d, e,
+      z,
+      n);
+  if (info != 0) {
     std::cout << stev_err_msg << std::endl;
     exit(1);
   }
   //if performance is suffered by here,  aligned malloc here
-  dcomplex* exp_of_eigenvals_mul_first_raw = (dcomplex*)malloc(n * sizeof(dcomplex));
-  for(size_t i = 0; i < n; i++) {
-    exp_of_eigenvals_mul_first_raw[i] = std::exp( dcomplex(0.0, - step_length * d[i] ) ) * z[i];
+  QLTEN_Complex *exp_of_eigenvals_mul_first_raw = (QLTEN_Complex *) malloc(n * sizeof(QLTEN_Complex));
+  for (size_t i = 0; i < n; i++) {
+    exp_of_eigenvals_mul_first_raw[i] = exp(QLTEN_Complex(0.0, -step_length * d[i])) * z[i];
   }
 
-  for(size_t i = 0; i < n; i++) {
-    dcomplex sum {0.0, 0.0};
-    for(size_t j = 0; j < n; j++) {
-      sum += z[i*n + j] * exp_of_eigenvals_mul_first_raw[j];
+  for (size_t i = 0; i < n; i++) {
+    QLTEN_Complex sum{0.0, 0.0};
+    for (size_t j = 0; j < n; j++) {
+      sum += z[i * n + j] * exp_of_eigenvals_mul_first_raw[j];
     }
     res[i] = sum;
   }
@@ -240,14 +249,23 @@ inline void TridiagExpme1Solver(
  * @param n
  * @return
  */
-template <typename ElemType>
+template<typename ElemType>
 inline double Distance(
     ElemType *v1,
     const ElemType *v2,
     const size_t n
-    ) {
+) {
+#ifndef USE_GPU
   qlten::hp_numeric::VectorAddTo(v2, n, v1, -1.0);
   return qlten::hp_numeric::Vector2Norm(v1, n);
+#else
+  double sum(0);
+  for(size_t i = 0; i < n;i++){
+    auto diff = v2[i] - v1[i];
+    sum += qlten::norm(diff);
+  }
+  return qlten::sqrt(sum);
+#endif
 }
 }//qlmps
 #endif //QLMPS_ALGORITHM_LANCZOS_SOLVER_EXPMV_IMPL_H

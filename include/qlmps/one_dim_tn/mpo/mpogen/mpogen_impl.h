@@ -96,7 +96,7 @@ void MPOGenerator<TenElemT, QNT>::AddTerm(
 ) {
   assert(local_ops.size() == local_ops_idxs.size());
   if (coef == TenElemT(0)) { return; }
-  if (std::abs(coef) < kDoubleEpsilon) {
+  if (qlten::abs(coef) < kDoubleEpsilon) {
     std::cout << "warning: too small hamiltonian coefficient. Neglect the term." << coef << std::endl;
     return;
   }   // If coef is zero, do nothing.
@@ -127,7 +127,12 @@ void MPOGenerator<TenElemT, QNT>::AddTerm(
   //< Input Operator should remove some linear relationship. Here we remove the sign.
   for (size_t i = 0; i < local_ops.size(); i++) {
     auto &op = local_ops[i];
-    const TenElemT first_data = (*op.GetBlkSparDataTen().GetActualRawDataPtr());
+#ifndef USE_GPU
+    const TenElemT first_data = (*op.GetRawDataPtr());
+#else
+    TenElemT first_data;
+    cudaMemcpy((void *)&first_data, op.GetRawDataPtr(), sizeof(TenElemT), cudaMemcpyDeviceToHost);
+#endif
     if (Real(first_data) < 0.0) {
       coef *= (-1);
       op *= (-1);

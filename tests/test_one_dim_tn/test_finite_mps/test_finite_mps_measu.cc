@@ -90,8 +90,6 @@ void RunTestMeasureOneSiteOpCase(
   for (size_t i = 0; i < res.size(); ++i) {
     ExpectDoubleEq(measu_res[i].avg, res[i]);
   }
-
-  mkl_free_buffers();
 }
 
 
@@ -134,8 +132,6 @@ void RunTestMeasureTwoSiteOpCase(
   for (size_t i = 0; i < res.size(); ++i) {
     ExpectDoubleEq(measu_res[i].avg, res[i]);
   }
-
-  mkl_free_buffers();
 }
 
 

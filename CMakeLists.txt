@@ -63,8 +63,6 @@ add_subdirectory(script)
 # Build unittests.
 if (QLMPS_BUILD_UNITTEST)
     find_path(QLMPS_TENSOR_LIB_HEADER_PATH "qlten")
-    find_path(hptt_INCLUDE_DIR "hptt.h")
-    find_library(hptt_LIBRARY "libhptt.a")
     enable_testing()
     find_package(GTest REQUIRED)
     add_subdirectory(tests tests)

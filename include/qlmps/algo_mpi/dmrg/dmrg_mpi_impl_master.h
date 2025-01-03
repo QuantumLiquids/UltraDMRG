@@ -400,8 +400,9 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGInit_() {
 
   std::cout << "=====> Technical Parameters <=====" << "\n";
   std::cout << "The number of processors(including master): \t" << world_.size() << "\n";
+#ifndef  USE_GPU
   std::cout << "The number of threads per processor: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
-
+#endif
   std::cout << "=====> Checking and Updating Boundary Tensors =====>" << std::endl;
 
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(

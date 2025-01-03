@@ -7,6 +7,39 @@
 # 
 # Set MKL compile flags and link flags.
 
+option(QLMPS_USE_GPU "Use GPU" OFF)
+if (QLMPS_USE_GPU)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/") # find cutensor
+
+    add_definitions(-DUSE_GPU=1)
+
+    # Enable CUDA language support
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)  # Modern CUDA Toolkit detection
+
+    include_directories(${CUDAToolkit_INCLUDE_DIRS})
+    message(STATUS "CUDA_INCLUDE_DIRS: '${CUDAToolkit_INCLUDE_DIRS}'")
+
+    # Set CUDA architectures
+    set(CMAKE_CUDA_ARCHITECTURES 70 80) # For V100 & A100, adjust if needed
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -lineinfo -Xcompiler=-fPIC")
+
+
+    find_package(CUTENSOR REQUIRED)
+
+    file(GLOB_RECURSE TEST_SOURCES_SUBDIRS */*.cc)
+    file(GLOB TEST_SOURCES_ROOT *.cc)
+    set(TEST_SOURCES ${TEST_SOURCES_SUBDIRS} ${TEST_SOURCES_ROOT})
+    message(STATUS "TEST_SOURCES" ${TEST_SOURCES})
+    # Treat all .cc files in tests/ as CUDA files
+    set_source_files_properties(${TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
+elseif ()
+    find_path(hptt_INCLUDE_DIR "hptt.h")
+    find_library(hptt_LIBRARY "libhptt.a")
+endif ()
+option(QLTEN_USE_OPENBLAS "Use openblas rather mkl" OFF)
+
+
 if (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     if (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
         set(MATH_LIB_COMPILE_FLAGS "-I$ENV{MKLROOT}/include")
@@ -75,104 +108,140 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(OMP_FLAGS -fopenmp)
 endif ()
 
-macro(add_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
+if (QLMPS_USE_GPU)
+    macro(add_unittest
+            TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
 
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
+        target_compile_options(${TEST_NAME}
+                PRIVATE ${CFLAGS}
+                PRIVATE ${OMP_FLAGS}
+        )
 
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            GTest::GTest GTest::Main
-            ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            ${LINK_LIBS} "${LINK_LIB_FLAGS}")
-
-    add_test(
-            NAME ${TEST_NAME}
-            COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
-            WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    )
-
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${QLMPS_HEADER_PATH}
+                PRIVATE ${QLTEN_HEADER_PATH}
+                PRIVATE ${CUTENSOR_INCLUDE_DIR}
+                PRIVATE ${Boost_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR}
+        )
+        target_link_libraries(${TEST_NAME}
+                PRIVATE CUDA::cublas_static
+                PRIVATE CUDA::cusolver_static
+                PRIVATE ${CUTENSOR_LIBRARY}
+                PRIVATE GTest::GTest GTest::Main
+                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+        ) #remove MPI and boost dependence since GPU code not support MPI upto now
 
 
-macro(add_mpi_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS PROCESSOR_NUM)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
-
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            GTest::GTest GTest::Main
-            ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-    )
-
-    if (NOT (MPIEXEC_MAX_NUMPROCS MATCHES "1"))
         add_test(
                 NAME ${TEST_NAME}
-                COMMAND ${MPIEXEC_EXECUTABLE}
-                ${MPIEXEC_NUMPROC_FLAG} ${PROCESSOR_NUM}
-                $<TARGET_FILE:${TEST_NAME}>)
-    endif ()
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
+                COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
+                WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        )
+
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
+else ()
+    macro(add_unittest
+            TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
+
+        target_compile_options(${TEST_NAME}
+                PRIVATE ${CFLAGS}
+                PRIVATE ${OMP_FLAGS}
+        )
+
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${QLMPS_HEADER_PATH}
+                PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
+                PRIVATE ${hptt_INCLUDE_DIR}
+                PRIVATE ${Boost_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR})
+        target_link_libraries(${TEST_NAME}
+                GTest::GTest GTest::Main
+                ${hptt_LIBRARY}
+                Boost::serialization
+                Boost::mpi
+                ${MPI_CXX_LINK_FLAGS}
+                ${MPI_mpi_LIBRARY}
+                ${LINK_LIBS} "${LINK_LIB_FLAGS}")
+
+        add_test(
+                NAME ${TEST_NAME}
+                COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
+                WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        )
+
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
 
 
-macro(compile_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
+    macro(add_mpi_unittest
+            TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS PROCESSOR_NUM)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
 
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            GTest::GTest GTest::Main
-            ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-    )
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
+        target_compile_options(${TEST_NAME}
+                PRIVATE ${CFLAGS}
+                PRIVATE ${OMP_FLAGS}
+        )
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${QLMPS_HEADER_PATH}
+                PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
+                PRIVATE ${hptt_INCLUDE_DIR}
+                PRIVATE ${Boost_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR})
+        target_link_libraries(${TEST_NAME}
+                GTest::GTest GTest::Main
+                ${hptt_LIBRARY}
+                Boost::serialization
+                Boost::mpi
+                ${MPI_CXX_LINK_FLAGS}
+                ${MPI_mpi_LIBRARY}
+                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+        )
 
+        if (NOT (MPIEXEC_MAX_NUMPROCS MATCHES "1"))
+            add_test(
+                    NAME ${TEST_NAME}
+                    COMMAND ${MPIEXEC_EXECUTABLE}
+                    ${MPIEXEC_NUMPROC_FLAG} ${PROCESSOR_NUM}
+                    $<TARGET_FILE:${TEST_NAME}>)
+        endif ()
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
+
+
+    macro(compile_unittest
+            TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
+
+        target_compile_options(${TEST_NAME}
+                PRIVATE ${CFLAGS}
+                PRIVATE ${OMP_FLAGS}
+        )
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${QLMPS_HEADER_PATH}
+                PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
+                PRIVATE ${hptt_INCLUDE_DIR}
+                PRIVATE ${Boost_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR})
+        target_link_libraries(${TEST_NAME}
+                GTest::GTest GTest::Main
+                ${hptt_LIBRARY}
+                Boost::serialization
+                Boost::mpi
+                ${MPI_CXX_LINK_FLAGS}
+                ${MPI_mpi_LIBRARY}
+                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+        )
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
+endif ()
 
 ## Test sites vector.
 add_unittest(test_site_vec test_site_vec.cc "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "")
@@ -257,7 +326,7 @@ add_unittest(test_two_site_finite_vmps_with_noise
 )
 # Two-site update finite DMRG
 add_unittest(test_finite_dmrg
-        "test_algorithm/test_finite_dmrg.cpp"
+        "test_algorithm/test_finite_dmrg.cc"
         "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
 )
 add_unittest(test_fermion_two_site_update_finite_vmps
@@ -266,30 +335,33 @@ add_unittest(test_fermion_two_site_update_finite_vmps
 )
 # Test two site TDVP
 add_unittest(test_two_site_finite_tdvp
-        "test_algorithm/test_two_site_finite_tdvp.cpp"
+        "test_algorithm/test_two_site_finite_tdvp.cc"
         "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
 )
 
-# Test mpi two site update
-add_mpi_unittest(test_mpi_two_site_update_finite_vmps
-        "test_mpi_algorithm/test_mpi_two_site_update_finite_vmps.cc"
-        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
-)
 
-# Test mpi two site noised update
-add_mpi_unittest(test_mpi_two_site_update_noised_finite_vmps
-        "test_mpi_algorithm/test_mpi_two_site_update_noised_finite_vmps.cc"
-        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
-)
+if (NOT QLMPS_USE_GPU)
+    # Test mpi two site update
+    add_mpi_unittest(test_mpi_two_site_update_finite_vmps
+            "test_mpi_algorithm/test_mpi_two_site_update_finite_vmps.cc"
+            "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
+    )
 
-# Test mpi two site TDVP
-add_mpi_unittest(test_mpi_two_site_finite_tdvp
-        "test_mpi_algorithm/test_mpi_two_site_finite_tdvp.cpp"
-        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
-)
+    # Test mpi two site noised update
+    add_mpi_unittest(test_mpi_two_site_update_noised_finite_vmps
+            "test_mpi_algorithm/test_mpi_two_site_update_noised_finite_vmps.cc"
+            "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
+    )
 
-# Test mpi two site DMRG
-add_mpi_unittest(test_mpi_finite_dmrg
-        "test_mpi_algorithm/test_mpi_dmrg.cc"
-        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
-)
+    # Test mpi two site TDVP
+    add_mpi_unittest(test_mpi_two_site_finite_tdvp
+            "test_mpi_algorithm/test_mpi_two_site_finite_tdvp.cc"
+            "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
+    )
+
+    # Test mpi two site DMRG
+    add_mpi_unittest(test_mpi_finite_dmrg
+            "test_mpi_algorithm/test_mpi_dmrg.cc"
+            "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" "4"
+    )
+endif ()

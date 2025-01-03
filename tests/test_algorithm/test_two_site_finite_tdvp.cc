@@ -90,7 +90,7 @@ QLTEN_Complex OpenSpinlessFreeFermion1DDynamicCorrelation(
   for (size_t k = 1; k <= L; k++) {
     double epsilon_k = -2 * t * std::cos((k * M_PI) / (L + 1));
     if (epsilon_k > 0) {
-      res += std::exp(-QLTEN_Complex(0.0, epsilon_k) * time) *
+      res += qlmps::complex_exp(-QLTEN_Complex(0.0, epsilon_k) * time) *
           sin((k * M_PI) / (L + 1) * (x1 + 1)) * sin((k * M_PI) / (L + 1) * (x2 + 1));
     }
   }

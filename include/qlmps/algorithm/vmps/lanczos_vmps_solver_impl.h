@@ -68,7 +68,7 @@ inline void LanczosFree(
     TenT *&last_mat_mul_vec_res
 ) {
   if (a != nullptr) { delete[] a; }
-  for (auto &ptr: b) { delete ptr; }
+  for (auto &ptr : b) { delete ptr; }
   delete last_mat_mul_vec_res;
 }
 
@@ -81,7 +81,11 @@ inline void LanczosFree(
     TenT *&last_mat_mul_vec_res
 ) {
   if (a != nullptr) { delete[] a; }
+#ifndef  USE_GPU
   const int ompth = hp_numeric::tensor_manipulation_num_threads;
+#else
+  const int ompth = 4;
+#endif
 #pragma omp parallel for default(shared) num_threads(ompth) schedule(static)
   for (size_t i = 0; i < b_size; i++) {
     delete b[i];
@@ -278,21 +282,19 @@ QLTensor<TenElemT, QNT> *eff_ham_mul_two_site_state(
   Contract<TenElemT, QNT, true, true>(temp_ten1, *eff_ham[1], 1, 0, 2, temp_ten2);
   Contract<TenElemT, QNT, true, true>(temp_ten2, *eff_ham[2], 4, 0, 2, temp_ten3);
   Contract<TenElemT, QNT, true, false>(temp_ten3, *eff_ham[3], 4, 1, 2, *res);
-  if (hp_numeric::tensor_manipulation_num_threads >= 3) {
 #pragma omp parallel sections num_threads(3)
+  {
+#pragma omp section
     {
+      temp_ten1.GetBlkSparDataTen().Clear();
+    }
 #pragma omp section
-      {
-        temp_ten1.GetBlkSparDataTen().Clear();
-      }
+    {
+      temp_ten2.GetBlkSparDataTen().Clear();
+    }
 #pragma omp section
-      {
-        temp_ten2.GetBlkSparDataTen().Clear();
-      }
-#pragma omp section
-      {
-        temp_ten3.GetBlkSparDataTen().Clear();
-      }
+    {
+      temp_ten3.GetBlkSparDataTen().Clear();
     }
   }
   return res;

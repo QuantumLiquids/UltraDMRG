@@ -213,7 +213,7 @@ void FiniteMPS<TenElemT, QNT>::RightCanonicalize(const size_t stop_idx) {
 
 template<typename TenElemT, typename QNT>
 QLTensor<QLTEN_Double, QNT> FiniteMPS<TenElemT, QNT>::RightCanonicalizeTen(const size_t site_idx) {
-  ///< TODO: using LU decomposition
+  ///< TODO: using LQ decomposition
   assert(site_idx > 0);
   size_t ldims = 1;
   LocalTenT u;

@@ -92,8 +92,9 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
 
   std::cout << "=====> Technical Parameters <=====" << "\n";
   std::cout << "The number of processors(including master): \t" << world.size() << "\n";
+#ifndef  USE_GPU
   std::cout << "The number of threads per processor: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
-
+#endif
   std::cout << "=====> Checking and updating boundary tensors =====>" << std::endl;
   using Tensor = QLTensor<TenElemT, QNT>;
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(
@@ -117,9 +118,9 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
       right_boundary,
       sweep_params.temp_path)
       ) {
-  std::cout << "=====> Creating the environment tensors =====>" << std::endl;
-  MasterBroadcastOrder(init_grow_env, world);
-  InitEnvsMaster(mps, mpo, sweep_params.mps_path, sweep_params.temp_path, left_boundary + 2, world);
+    std::cout << "=====> Creating the environment tensors =====>" << std::endl;
+    MasterBroadcastOrder(init_grow_env, world);
+    InitEnvsMaster(mps, mpo, sweep_params.mps_path, sweep_params.temp_path, left_boundary + 2, world);
   } else {
     std::cout << "The environment tensors have existed." << std::endl;
   }

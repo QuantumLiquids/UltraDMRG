@@ -45,7 +45,7 @@ inline void RandCplxHerMat(QLTEN_Complex *mat, long dim) {
     for (long j = 0; j < i; ++j) {
       QLTEN_Complex elem(Rand(), Rand());
       mat[(i * dim + j)] = elem;
-      mat[(j * dim + i)] = std::conj(elem);
+      mat[(j * dim + i)] = qlten::conj(elem); //unified API for CUDA and std-cpp
     }
   }
   for (long i = 0; i < dim; ++i) {

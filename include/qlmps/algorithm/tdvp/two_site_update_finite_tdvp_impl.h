@@ -168,7 +168,7 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
     for (size_t i = 0; i < N; i++) {
       measure_res[(step + 1) * N + i].times = {0.0, time};
       measure_res[(step + 1) * N + i].sites = {site_0, i};
-      measure_res[(step + 1) * N + i].avg = correlation[i] * std::exp(QLTEN_Complex(0.0, sweep_params.e0) * time);
+      measure_res[(step + 1) * N + i].avg = correlation[i] * qlmps::complex_exp(QLTEN_Complex(0.0, sweep_params.e0) * time);
     }
     measure_timer.PrintElapsed();
     std::cout << "\n";

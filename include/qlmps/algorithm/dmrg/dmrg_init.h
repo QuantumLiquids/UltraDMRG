@@ -48,8 +48,9 @@ void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
   std::cout << "Lanczos max iterations \t" << sweep_params.lancz_params.max_iterations << "\n";
   std::cout << "MPS path: \t" << sweep_params.mps_path << "\n";
   std::cout << "Temp path: \t" << sweep_params.temp_path << std::endl;
+#ifndef USE_GPU
   std::cout << "The number of threads: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
-
+#endif
   std::cout << "=====> Checking and Updating Boundary Tensors =====>" << std::endl;
 
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(

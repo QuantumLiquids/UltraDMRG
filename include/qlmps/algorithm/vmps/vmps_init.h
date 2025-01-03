@@ -88,8 +88,9 @@ std::pair<size_t, size_t> FiniteVMPSInit(
   std::cout << "Temp path: \t" << sweep_params.temp_path << std::endl;
 
   std::cout << "=====> Technical Parameters <=====" << "\n";
+#ifndef USE_GPU
   std::cout << "The number of threads: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
-
+#endif
   std::cout << "=====> Checking and updating boundary tensors =====>" << std::endl;
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(
       mps,

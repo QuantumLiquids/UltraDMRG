@@ -58,7 +58,7 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
     energy_measu_ctrct_axes = {{0, 1, 2, 3}, {0, 1, 2, 3}};
   }
 
-  std::vector<TenT *> bases(params.max_iterations);
+  std::vector < TenT * > bases(params.max_iterations);
   std::vector<QLTEN_Double> a(params.max_iterations, 0.0);
   std::vector<QLTEN_Double> b(params.max_iterations, 0.0);
 
@@ -118,8 +118,8 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
       expmv_res.iters = m;
       if (m == 1) { //initial state is just an eigenstate
         expmv_res.expmv = new TenT();
-        std::complex<double> evolution_phase_factor{0.0, -step_length * a[0]};
-        (*expmv_res.expmv) = (  std::exp(evolution_phase_factor)) * (*bases[0]);
+        QLTEN_Complex evolution_phase_factor{0.0, -step_length * a[0]};
+        (*expmv_res.expmv) = (qlmps::complex_exp(evolution_phase_factor)) * (*bases[0]);
       } else {
 #ifdef QLMPS_TIMING_MODE
         trigssolver.Restart();
@@ -130,7 +130,6 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
         Timer final_linear_combine_timer("lancz_finial_linear_combine");
 #endif
         expmv_res.expmv = new TenT(bases[0]->GetIndexes());
-//        hp_numeric::VectorScale(combination_factor, m, initial_norm);
         LinearCombine(m, combination_factor, bases, QLTEN_Complex(0.0), expmv_res.expmv);
 #ifdef QLMPS_TIMING_MODE
         final_linear_combine_timer.PrintElapsed();
@@ -182,7 +181,6 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
 #endif
       expmv_res.iters = m + 1;
       expmv_res.expmv = new TenT(bases[0]->GetIndexes());
-//      hp_numeric::VectorScale(combination_factor, m + 1, initial_norm);
       LinearCombine(m + 1, combination_factor, bases, QLTEN_Complex(0.0), expmv_res.expmv);
 #ifdef QLMPS_TIMING_MODE
       final_linear_combine_timer.PrintElapsed();

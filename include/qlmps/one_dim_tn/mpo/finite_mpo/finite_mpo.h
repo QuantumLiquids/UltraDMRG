@@ -203,9 +203,9 @@ class FiniteMPO : public TenVec<QLTensor<TenElemT, QNT>> {
   }
 
   double SquareAndNormlize(const MpoVOptimizeParams &optimize_params) {
-    double norm2 = this->Square(optimize_params);
+    this->Square(optimize_params);
+    double norm2 = this->Normalize();
     assert(center_ != kUncentralizedCenterIdx);
-    this->Scale(1.0 / norm2);
     return norm2;
   }
 
