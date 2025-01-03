@@ -33,9 +33,10 @@ if (QLMPS_USE_GPU)
     message(STATUS "TEST_SOURCES" ${TEST_SOURCES})
     # Treat all .cc files in tests/ as CUDA files
     set_source_files_properties(${TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
-elseif ()
+else ()
     find_path(hptt_INCLUDE_DIR "hptt.h")
     find_library(hptt_LIBRARY "libhptt.a")
+    message(STATUS "HPTT Lib : " "${hptt_LIBRARY}")
 endif ()
 option(QLTEN_USE_OPENBLAS "Use openblas rather mkl" OFF)
 

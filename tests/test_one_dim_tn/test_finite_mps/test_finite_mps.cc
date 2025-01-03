@@ -129,7 +129,6 @@ void CheckMPSCenter(const MPST &mps, const int center) {
 void RunTestMPSCentralizeCase(MPST &mps, const int center) {
   mps.Centralize(center);
   CheckMPSCenter(mps, center);
-  mkl_free_buffers();
 }
 
 void RunTestMPSCentralizeCase(MPST &mps) {

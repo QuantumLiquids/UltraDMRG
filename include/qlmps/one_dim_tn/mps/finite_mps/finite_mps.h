@@ -184,6 +184,7 @@ template<typename TenElemT, typename QNT>
 void FiniteMPS<TenElemT, QNT>::LeftCanonicalizeTen(const size_t site_idx) {
   assert(site_idx < this->size() - 1);
   size_t ldims(2);
+#ifndef USE_GPU
   auto pq = new LocalTenT;
   LocalTenT r;
   QR((*this)(site_idx), ldims, Div((*this)[site_idx]), pq, &r);
@@ -192,9 +193,22 @@ void FiniteMPS<TenElemT, QNT>::LeftCanonicalizeTen(const size_t site_idx) {
 
   auto pnext_ten = new LocalTenT;
   Contract(&r, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
+#else
+  auto pu = new LocalTenT;
+  QLTensor<QLTEN_Double, QNT> s;
+  LocalTenT vt;
+  auto qndiv = Div((*this)[site_idx]);
+  mock_qlten::SVD((*this)(site_idx), ldims, qndiv, pu, &s, &vt);
+  delete (*this)(site_idx);
+  (*this)(site_idx) = pu;
+
+  LocalTenT temp_ten;
+  Contract(&s, &vt, {{1}, {0}}, &temp_ten);
+  auto pnext_ten = new LocalTenT;
+  Contract(&temp_ten, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
+#endif
   delete (*this)(site_idx + 1);
   (*this)(site_idx + 1) = pnext_ten;
-
   tens_cano_type_[site_idx] = MPSTenCanoType::LEFT;
   tens_cano_type_[site_idx + 1] = MPSTenCanoType::NONE;
 }

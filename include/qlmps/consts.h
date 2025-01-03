@@ -22,7 +22,7 @@
 #include <cuda/std/complex>
 #include <cuda_runtime.h>
 #else
-#include <std/complex>
+#include <complex>
 #endif
 
 namespace qlmps {
