@@ -740,7 +740,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
       LanczosParams(1.0E-14, 100)
   );
   auto mps = ZMPS(site_vec);
-  DirectStateInitMps(mps, {0, 1, 0, 2, 2, 1});
+  DirectStateInitMps(mps, {0, 1, 0, 2, 0, 1});
   mps.Dump(sweep_params.mps_path, true);
   RunTestTwoSiteAlgorithmCase(
       mps, mpo, sweep_params,

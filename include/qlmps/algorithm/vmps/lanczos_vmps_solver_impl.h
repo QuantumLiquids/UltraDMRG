@@ -153,13 +153,6 @@ LanczosRes<TenT> LanczosSolver(
 
   TenT temp_scalar_ten;
   auto base_dag = Dag(*bases[0]);
-  TenT fermion_sign_projector;
-  if constexpr (TenT::IsFermionic()) {
-    fermion_sign_projector = TenT({base_dag.GetIndex(0), pinit_state->GetIndex(0)});
-    for (size_t i = 0; i < fermion_sign_projector.GetShape()[0]; i++) {
-      fermion_sign_projector({i, i}) = 1;
-    }
-  }
   Contract(
       last_mat_mul_vec_res, &base_dag,
       energy_measu_ctrct_axes,
@@ -173,14 +166,9 @@ LanczosRes<TenT> LanczosSolver(
   // Lanczos iterations.
   while (true) {
     m += 1;
-    TenT *gamma;
+    TenT *gamma = last_mat_mul_vec_res;
     if constexpr (TenT::IsFermionic()) {
-      gamma = new TenT();
-      Contract(&fermion_sign_projector, last_mat_mul_vec_res, {{0}, {0}}, gamma);
-      delete last_mat_mul_vec_res;
-      last_mat_mul_vec_res = nullptr;
-    } else {
-      gamma = last_mat_mul_vec_res;
+      gamma->ActFermionPOps();
     }
     if (m == 1) {
       LinearCombine({-a[m - 1]}, {bases[m - 1]}, 1.0, gamma);
