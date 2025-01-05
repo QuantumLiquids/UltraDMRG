@@ -28,11 +28,9 @@ namespace qlmps {
 using namespace qlten;
 
 // Forward declarations.
-
 template<typename TenElemT, typename QNT>
-QLTensor<TenElemT, QNT> *first_super_block_hamiltonian_mul_two_site_state(
-    const SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
-    QLTensor<TenElemT, QNT> *state,
+void combine_operators_in_super_blk_hamiltonian(
+    SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
     std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,  //output
     std::vector<QLTensor<TenElemT, QNT>> &site_block_ops   //output
 );
@@ -48,14 +46,15 @@ QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
 Obtain the lowest energy eigenvalue and corresponding eigenstate from the effective
 Hamiltonian and a initial state using Lanczos algorithm.
 
-@param rpeff_ham Effective Hamiltonian as a vector of pointer-to-tensors.
+eff_ham will be erased after calling Lanczos
+
+@param peff_ham Effective Hamiltonian as a vector of pointer-to-tensors.
 @param pinit_state Pointer to initial state for Lanczos iteration.
-@param eff_ham_mul_state Function pointer to effective Hamiltonian multiply to state.
 @param params Parameters for Lanczos solver.
 */
 template<typename TenT>
 LanczosRes<TenT> LanczosSolver(
-    const SuperBlockHamiltonianTerms<TenT> &eff_ham,
+    SuperBlockHamiltonianTerms<TenT> &eff_ham,
     TenT *pinit_state,
     const LanczosParams &params,
     std::vector<TenT> &block_site_ops,  //output
@@ -86,8 +85,8 @@ LanczosRes<TenT> LanczosSolver(
   Timer mat_vec_timer("lancz_mat_vec");
 #endif
 
-  auto last_mat_mul_vec_res =
-      first_super_block_hamiltonian_mul_two_site_state(eff_ham, bases[0], block_site_ops, site_block_ops);
+  combine_operators_in_super_blk_hamiltonian(eff_ham, block_site_ops, site_block_ops);
+  auto last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(block_site_ops, site_block_ops, bases[0]);
 
 #ifdef QLMPS_TIMING_MODE
   mat_vec_timer.PrintElapsed();
@@ -197,9 +196,8 @@ LanczosRes<TenT> LanczosSolver(
  * |----0 0-------------------3 0----|
  */
 template<typename TenElemT, typename QNT>
-QLTensor<TenElemT, QNT> *first_super_block_hamiltonian_mul_two_site_state( //first time do this
-    const SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
-    QLTensor<TenElemT, QNT> *state,
+void combine_operators_in_super_blk_hamiltonian( //first time do this
+    SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
     std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,  //output
     std::vector<QLTensor<TenElemT, QNT>> &site_block_ops   //output
 ) {
@@ -235,20 +233,7 @@ QLTensor<TenElemT, QNT> *first_super_block_hamiltonian_mul_two_site_state( //fir
     }
     site_block_ops[i].Transpose({0, 2, 1, 3});
   }
-
-  auto multiplication_res = std::vector<TenT>(num_terms);
-  auto pmultiplication_res = std::vector<TenT *>(num_terms);
-  const std::vector<TenElemT> &coefs = std::vector<TenElemT>(num_terms, TenElemT(1.0));
-  for (size_t i = 0; i < num_terms; i++) {
-    TenT temp1;
-    Contract(&block_site_ops[i], state, {{2, 3}, {0, 1}}, &temp1);
-    Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, &multiplication_res[i]);
-    pmultiplication_res[i] = &multiplication_res[i];
-  }
-  auto res = new TenT;
-  //TODO: optimize the summation
-  LinearCombine(coefs, pmultiplication_res, TenElemT(0.0), res);
-  return res;
+  eff_ham.clear();
 }
 
 template<typename TenElemT, typename QNT>

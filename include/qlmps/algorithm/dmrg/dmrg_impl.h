@@ -170,7 +170,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
       sweep_params.lancz_params,
       block_site_ops_,
       site_block_ops_
-  );
+  );  // hamiltonian_terms_ will be erased after calling Lanczos
   auto lancz_elapsed_time = lancz_timer.Elapsed();
 
   //svd,
@@ -248,7 +248,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::SetEffectiveHamiltonianTerms_() {
-  hamiltonian_terms_.clear();
+  assert(hamiltonian_terms_.empty());
   block_site_ops_.clear();
   site_block_ops_.clear();
   // in the sense of this function, we should set the block_site_ops_ and site_block_ops_ here
