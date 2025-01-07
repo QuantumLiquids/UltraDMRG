@@ -81,11 +81,16 @@ LanczosRes<TenT> LanczosSolver(
   pinit_state->Normalize();
   bases[0] = pinit_state;
 
+
 #ifdef QLMPS_TIMING_MODE
+  std::cout << "lanczos start. " << std::endl;
+  Timer super_blk_hamil_timer("super_blk_hamil_gene");
+#endif
+  combine_operators_in_super_blk_hamiltonian(eff_ham, block_site_ops, site_block_ops);
+#ifdef QLMPS_TIMING_MODE
+  super_blk_hamil_timer.PrintElapsed();
   Timer mat_vec_timer("lancz_mat_vec");
 #endif
-
-  combine_operators_in_super_blk_hamiltonian(eff_ham, block_site_ops, site_block_ops);
   auto last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(block_site_ops, site_block_ops, bases[0]);
 
 #ifdef QLMPS_TIMING_MODE
@@ -205,34 +210,79 @@ void combine_operators_in_super_blk_hamiltonian( //first time do this
   size_t num_terms = eff_ham.size();
   block_site_ops.resize(num_terms);
   site_block_ops.resize(num_terms);
+  const bool save_mem = true; // may make slightly slow in this step
   for (size_t i = 0; i < num_terms; i++) {
     // for block-site
     auto &block_site_terms = eff_ham[i].first;
-    auto pblock_site_ops_res_s = std::vector<TenT *>(block_site_terms.size());
-    for (size_t j = 0; j < block_site_terms.size(); j++) {
-      pblock_site_ops_res_s[j] = new TenT();
-      Contract(block_site_terms[j][0], block_site_terms[j][1], {{}, {}}, pblock_site_ops_res_s[j]);
-    }
-    std::vector<TenElemT> coefs = std::vector<TenElemT>(block_site_terms.size(), TenElemT(1.0));
-    LinearCombine(coefs, pblock_site_ops_res_s, TenElemT(0.0), &block_site_ops[i]);
-    for (size_t j = 0; j < block_site_terms.size(); j++) {
-      delete pblock_site_ops_res_s[j];
+    if constexpr(save_mem) {
+      for (size_t j = 0; j < block_site_terms.size(); j++) {
+        TenT temp;
+        Contract(block_site_terms[j][0], block_site_terms[j][1], {{}, {}}, &temp);
+        if(j == 0 ){
+          block_site_ops[i] = temp;
+        } else {
+          block_site_ops[i] += temp;
+        }
+      }
+    } else {
+      auto pblock_site_ops_res_s = std::vector<TenT *>(block_site_terms.size());
+      for (size_t j = 0; j < block_site_terms.size(); j++) {
+        pblock_site_ops_res_s[j] = new TenT();
+        Contract(block_site_terms[j][0], block_site_terms[j][1], {{}, {}}, pblock_site_ops_res_s[j]);
+      }
+      std::vector<TenElemT> coefs = std::vector<TenElemT>(block_site_terms.size(), TenElemT(1.0));
+      LinearCombine(coefs, pblock_site_ops_res_s, TenElemT(0.0), &block_site_ops[i]);
+      for (size_t j = 0; j < block_site_terms.size(); j++) {
+        delete pblock_site_ops_res_s[j];
+      }
     }
     block_site_ops[i].Transpose({1, 3, 0, 2});
+  }
+  //release memory
+  for (size_t i = 0; i < num_terms; i++) {
+    // for block-site
+    auto &block_site_terms = eff_ham[i].first;
+    for (size_t j = 0; j < block_site_terms.size(); j++) {
+      *block_site_terms[j][0] = TenT();
+    }
+  }
+
+  for (size_t i = 0; i < num_terms; i++) {
     // for site-block
     auto &site_block_terms = eff_ham[i].second;
-    auto psite_block_ops_res_s = std::vector<TenT *>(site_block_terms.size());
-    for (size_t j = 0; j < site_block_terms.size(); j++) {
-      psite_block_ops_res_s[j] = new TenT();
-      Contract(site_block_terms[j][0], site_block_terms[j][1], {{}, {}}, psite_block_ops_res_s[j]);
-    }
-    coefs = std::vector<TenElemT>(site_block_terms.size(), TenElemT(1.0));
-    LinearCombine(coefs, psite_block_ops_res_s, TenElemT(0.0), &site_block_ops[i]);
-    for (size_t j = 0; j < site_block_terms.size(); j++) {
-      delete psite_block_ops_res_s[j];
+    if constexpr(save_mem){
+      for (size_t j = 0; j < site_block_terms.size(); j++) {
+        TenT temp;
+        Contract(site_block_terms[j][0], site_block_terms[j][1], {{}, {}}, &temp);
+        if (j == 0){
+          site_block_ops[i] = temp;
+        } else {
+          site_block_ops[i] += temp;
+        }
+      }
+    } else {
+      auto psite_block_ops_res_s = std::vector<TenT *>(site_block_terms.size());
+      for (size_t j = 0; j < site_block_terms.size(); j++) {
+        psite_block_ops_res_s[j] = new TenT();
+        Contract(site_block_terms[j][0], site_block_terms[j][1], {{}, {}}, psite_block_ops_res_s[j]);
+      }
+      auto coefs = std::vector<TenElemT>(site_block_terms.size(), TenElemT(1.0));
+      LinearCombine(coefs, psite_block_ops_res_s, TenElemT(0.0), &site_block_ops[i]);
+      for (size_t j = 0; j < site_block_terms.size(); j++) {
+        delete psite_block_ops_res_s[j];
+      }
     }
     site_block_ops[i].Transpose({0, 2, 1, 3});
   }
+  //release memory
+  for (size_t i = 0; i < num_terms; i++) {
+    // for block-site
+    auto &terms = eff_ham[i].second;
+    for (size_t j = 0; j < terms.size(); j++) {
+      *terms[j][1] = TenT();
+    }
+  }
+
   eff_ham.clear();
 }
 
