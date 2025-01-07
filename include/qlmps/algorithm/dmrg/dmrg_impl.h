@@ -154,6 +154,16 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   }
   return e0_;
 }
+
+template <typename TenT>
+double EvaluateOpMem(const std::vector<TenT>& ops) {
+    double total_mem = 0;
+    for(auto& op : ops){
+	total_mem += op.GetRawDataMemUsage();
+    }
+    return total_mem;
+}
+
 template<typename TenElemT, typename QNT>
 double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Timer update_timer("two_site_dmrg_update");
@@ -163,6 +173,9 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 
   auto init_state = new Tensor;
   Contract(&mps_[l_site_], &mps_[r_site_], init_state_ctrct_axes, init_state);
+  auto div_left = Div(mps_[l_site_]);
+  delete mps_(l_site_);
+  delete mps_(r_site_);
   //lanczos,
   Timer lancz_timer("two_site_dmrg_lancz");
   auto lancz_res = LanczosSolver(
@@ -172,21 +185,25 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
       site_block_ops_
   );  // hamiltonian_terms_ will be erased after calling Lanczos
   auto lancz_elapsed_time = lancz_timer.Elapsed();
+  const double state_mem = lancz_res.gs_vec->GetRawDataMemUsage();
+  const double block_site_mem = EvaluateOpMem(block_site_ops_);
+  const double site_block_mem = EvaluateOpMem(site_block_ops_);
 
   //svd,
 #ifdef QLMPS_TIMING_MODE
   Timer svd_timer("two_site_dmrg_svd");
 #endif
-  Tensor u, vt;
+  Tensor* u = new Tensor();
+  Tensor* vt = new Tensor();
   using DTenT = QLTensor<QLTEN_Double, QNT>;
   DTenT s;
   QLTEN_Double actual_trunc_err;
   size_t D;
   SVD(
       lancz_res.gs_vec,
-      svd_ldims, Div(mps_[l_site_]),
+      svd_ldims, div_left,
       sweep_params.trunc_err, sweep_params.Dmin, sweep_params.Dmax,
-      &u, &s, &vt, &actual_trunc_err, &D
+      u, &s, vt, &actual_trunc_err, &D
   );
   delete lancz_res.gs_vec;
   auto ee = MeasureEE(s, D);
@@ -198,15 +215,17 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Timer update_mps_ten_timer("two_site_dmrg_update_mps_ten");
 #endif
 
-  Tensor the_other_mps_ten;
+  Tensor* the_other_mps_ten = new Tensor();
   switch (dir_) {
-    case 'r':mps_[l_site_] = std::move(u);
-      Contract(&s, &vt, {{1}, {0}}, &the_other_mps_ten);
-      mps_[r_site_] = std::move(the_other_mps_ten);
+    case 'r':mps_(l_site_) = u;
+      Contract(&s, vt, {{1}, {0}}, the_other_mps_ten);
+      delete vt;
+      mps_(r_site_) = the_other_mps_ten;
       break;
-    case 'l':Contract(&u, &s, {{2}, {0}}, &the_other_mps_ten);
-      mps_[l_site_] = std::move(the_other_mps_ten);
-      mps_[r_site_] = std::move(vt);
+    case 'l':Contract(u, &s, {{2}, {0}}, the_other_mps_ten);
+      delete u;
+      mps_(l_site_) = the_other_mps_ten;
+      mps_(r_site_) = vt;
       break;
     default:assert(false);
   }
@@ -241,6 +260,8 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
             << " Iter = " << std::setw(3) << lancz_res.iters
             << " LanczT = " << std::setw(8) << lancz_elapsed_time
             << " TotT = " << std::setw(8) << update_elapsed_time
+	    << " StateMem = " << std::setw(8) << state_mem << "GB"
+	    << " OpsMem = " << std::setw(8) << block_site_mem + site_block_mem << "GB"
             << " S = " << std::setw(10) << std::setprecision(7) << ee;
   std::cout << std::scientific << std::endl;
   return lancz_res.gs_eng;
