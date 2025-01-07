@@ -23,17 +23,15 @@ using namespace qlten;
 //forward declaration
 template<typename TenElemT, typename QNT>
 RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
-    const RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> &,
-    const QLTensor<TenElemT, QNT> &,
-    const SparMat<QLTensor<TenElemT, QNT>> &
+  const std::vector<QLTensor<TenElemT, QNT>>& site_block_ops,
+  const QLTensor<TenElemT, QNT> &mps
 );
 
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
-    const LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> &,
-    const QLTensor<TenElemT, QNT> &,
-    const SparMat<QLTensor<TenElemT, QNT>> &
-);
+  const std::vector<QLTensor<TenElemT, QNT>>& block_site_ops,
+  const QLTensor<TenElemT, QNT> &mps
+  );
 
 template<typename TenElemT, typename QNT>
 class DMRGExecutor : public Executor {
@@ -184,6 +182,8 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
       block_site_ops_,
       site_block_ops_
   );  // hamiltonian_terms_ will be erased after calling Lanczos
+  lopg_vec_[l_site_].clear();
+  ropg_vec_[(N_ - 1) - r_site_].clear();
   auto lancz_elapsed_time = lancz_timer.Elapsed();
   const double state_mem = lancz_res.gs_vec->GetRawDataMemUsage();
   const double block_site_mem = EvaluateOpMem(block_site_ops_);
@@ -247,12 +247,12 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 #endif
   switch (dir_) {
     case 'r': {
-      lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(lopg_vec_[l_block_len], mps_[l_site_], mat_repr_mpo_[l_site_]);
+      lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(block_site_ops_, mps_[l_site_]);
       block_site_ops_.clear();
     }
       break;
     case 'l': {
-      ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(ropg_vec_[r_block_len], mps_[r_site_], mat_repr_mpo_[r_site_]);
+      ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(site_block_ops_, mps_[r_site_]);
       site_block_ops_.clear();
     }
       break;
@@ -310,8 +310,6 @@ void DMRGExecutor<TenElemT, QNT>::DumpRelatedTensSweep_() {
 #ifdef QLMPS_TIMING_MODE
   Timer postprocessing_timer("two_site_dmrg_postprocessing");
 #endif
-  lopg_vec_[l_site_].clear();
-  ropg_vec_[(N_ - 1) - r_site_].clear();
   switch (dir_) {
     case 'r':
       mps_.DumpTen(

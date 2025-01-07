@@ -110,6 +110,22 @@ inline bool NeedGenerateBlockOps(
   }
 }
 
+
+template<typename TenElemT, typename QNT>
+RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
+  const std::vector<QLTensor<TenElemT, QNT>>& site_block_ops,
+  const QLTensor<TenElemT, QNT> &mps
+) {
+  auto mps_dag = Dag(mps);
+  RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> rog_next(site_block_ops.size());
+  for (size_t i = 0; i < site_block_ops.size(); i++) {
+    QLTensor<TenElemT, QNT> temp;
+    Contract(&mps, &site_block_ops[i], {{1, 2}, {0, 1}}, &temp);
+    Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &rog_next[i]);
+  }
+  return rog_next;
+}
+
 template<typename TenElemT, typename QNT>
 RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
     const RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> &rog,   // site i's env tensors
@@ -152,13 +168,28 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
 
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
+  const std::vector<QLTensor<TenElemT, QNT>>& block_site_ops,
+  const QLTensor<TenElemT, QNT> &mps) {
+  auto mps_dag = Dag(mps);
+  LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> log_next(block_site_ops.size());
+  for (size_t i = 0; i < block_site_ops.size(); i++) {
+    QLTensor<TenElemT, QNT> temp;
+    Contract(&block_site_ops[i], &mps, {{2, 3}, {0, 1}}, &temp);
+    Contract(&temp, &mps_dag, {{0, 1}, {0, 1}}, &log_next[i]);
+  }
+  return log_next;
+}
+
+
+template<typename TenElemT, typename QNT>
+LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
     const LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> &log,   // site i's env tensors
     const QLTensor<TenElemT, QNT> &mps,                       // site i
     const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   assert(log.size() == mat_repr_mpo.rows);
-  RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> log_next(mat_repr_mpo.cols);
+  LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> log_next(mat_repr_mpo.cols);
   std::vector<QLTensor<TenElemT, QNT>> temp_vec1(log.size()); // rog * mps;
   std::vector<QLTensor<TenElemT, QNT>> temp_vec2(log_next.size()); //rog * mps * mat_repr_mpo
 
