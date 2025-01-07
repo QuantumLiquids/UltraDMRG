@@ -189,6 +189,14 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   const double block_site_mem = EvaluateOpMem(block_site_ops_);
   const double site_block_mem = EvaluateOpMem(site_block_ops_);
 
+  switch (dir_) {
+    case 'r':site_block_ops_.clear();
+    break;
+  case 'l':block_site_ops_.clear();
+    break;
+    default:assert(false);
+  }
+
   //svd,
 #ifdef QLMPS_TIMING_MODE
   Timer svd_timer("two_site_dmrg_svd");
@@ -240,10 +248,12 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   switch (dir_) {
     case 'r': {
       lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(lopg_vec_[l_block_len], mps_[l_site_], mat_repr_mpo_[l_site_]);
+      block_site_ops_.clear();
     }
       break;
     case 'l': {
       ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(ropg_vec_[r_block_len], mps_[r_site_], mat_repr_mpo_[r_site_]);
+      site_block_ops_.clear();
     }
       break;
     default:assert(false);
@@ -270,8 +280,8 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::SetEffectiveHamiltonianTerms_() {
   assert(hamiltonian_terms_.empty());
-  block_site_ops_.clear();
-  site_block_ops_.clear();
+  assert(block_site_ops_.empty());
+  assert(site_block_ops_.empty());
   // in the sense of this function, we should set the block_site_ops_ and site_block_ops_ here
   // but, for the convenience of MPI parallel, we move this part into LanczosSolver_
   for (size_t j = 0; j < mat_repr_mpo_[l_site_].cols; j++) { // the middle index
