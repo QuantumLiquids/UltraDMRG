@@ -294,18 +294,32 @@ QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   size_t num_terms = block_site_ops.size();
-  auto multiplication_res = std::vector<TenT>(num_terms);
-  auto pmultiplication_res = std::vector<TenT *>(num_terms);
-  const std::vector<TenElemT> &coefs = std::vector<TenElemT>(num_terms, TenElemT(1.0));
-  for (size_t i = 0; i < num_terms; i++) {
-    TenT temp1;
-    Contract(&block_site_ops[i], state, {{2, 3}, {0, 1}}, &temp1);
-    Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, &multiplication_res[i]);
-    pmultiplication_res[i] = &multiplication_res[i];
-  }
+  const bool save_mem = true;
   auto res = new TenT;
-  //TODO: optimize the summation
-  LinearCombine(coefs, pmultiplication_res, TenElemT(0.0), res);
+  if constexpr (save_mem) {
+    for (size_t i = 0; i < num_terms; i++) {
+      TenT temp1, temp2;
+      Contract(&block_site_ops[i], state, {{2, 3}, {0, 1}}, &temp1);
+      if (i == 0) {
+        Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, res);
+      } else {
+        Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, &temp2);
+	*res += temp2;
+      }
+    }
+  } else {
+    auto multiplication_res = std::vector<TenT>(num_terms);
+    auto pmultiplication_res = std::vector<TenT *>(num_terms);
+    const std::vector<TenElemT> &coefs = std::vector<TenElemT>(num_terms, TenElemT(1.0));
+    for (size_t i = 0; i < num_terms; i++) {
+      TenT temp1;
+      Contract(&block_site_ops[i], state, {{2, 3}, {0, 1}}, &temp1);
+      Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, &multiplication_res[i]);
+      pmultiplication_res[i] = &multiplication_res[i];
+    }
+    //TODO: optimize the summation
+    LinearCombine(coefs, pmultiplication_res, TenElemT(0.0), res);
+  }
   return res;
 }
 
