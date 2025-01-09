@@ -31,7 +31,6 @@
 #define NDEBUG
 #endif
 
-
 namespace qlmps {
 using namespace qlten;
 
@@ -53,8 +52,8 @@ inline std::string GenEnvTenName(
     const std::string &dir, const long blk_len, const std::string temp_path
 ) {
   return temp_path + "/" +
-         dir + kEnvFileBaseName + std::to_string(blk_len) +
-         "." + kQLTenFileSuffix;
+      dir + kEnvFileBaseName + std::to_string(blk_len) +
+      "." + kQLTenFileSuffix;
 }
 
 inline void RemoveFile(const std::string &file) {
@@ -99,6 +98,7 @@ QLTEN_Double TwoSiteFiniteVMPS(
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params
 ) {
+  assert(mps.empty());
   if (sweep_params.noise_valid) {
     return TwoSiteFiniteVMPSWithNoise(mps, mpo, sweep_params);
   }
@@ -142,13 +142,6 @@ void InitEnvs(
 
 /** Generate the environment tensors before the first sweep
  *
- * @tparam TenElemT
- * @tparam QNT
- * @param mps
- * @param mpo
- * @param mps_path
- * @param temp_path
- * @param update_site_num
  */
 template<typename TenElemT, typename QNT>
 void InitEnvs(
@@ -260,20 +253,17 @@ double TwoSiteFiniteVMPSUpdate(
                            {0}};
   svd_ldims = 2;
   switch (dir) {
-    case 'r':
-      lsite_idx = target_site;
+    case 'r':lsite_idx = target_site;
       rsite_idx = target_site + 1;
       lenv_len = target_site;
       renv_len = N - (target_site + 2);
       break;
-    case 'l':
-      lsite_idx = target_site - 1;
+    case 'l':lsite_idx = target_site - 1;
       rsite_idx = target_site;
       lenv_len = target_site - 1;
       renv_len = N - target_site - 1;
       break;
-    default:
-      std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
+    default:std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
       exit(1);
   }
 
@@ -329,8 +319,7 @@ double TwoSiteFiniteVMPSUpdate(
 
   TenT the_other_mps_ten;
   switch (dir) {
-    case 'r':
-      mps[lsite_idx] = std::move(u);
+    case 'r':mps[lsite_idx] = std::move(u);
       Contract(&s, &vt, {{1},
                          {0}}, &the_other_mps_ten);
       mps[rsite_idx] = std::move(the_other_mps_ten);
@@ -341,8 +330,7 @@ double TwoSiteFiniteVMPSUpdate(
       mps[lsite_idx] = std::move(the_other_mps_ten);
       mps[rsite_idx] = std::move(vt);
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE
@@ -363,8 +351,7 @@ double TwoSiteFiniteVMPSUpdate(
       renvs[renv_len + 1] = std::move(UpdateSiteRenvs(renvs[renv_len], mps[target_site], mpo[target_site]));
     }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE
@@ -449,8 +436,7 @@ void LoadRelatedTensTwoSiteAlg(
         RemoveFile(lenv_file);
       }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 #ifdef QLMPS_TIMING_MODE
   preprocessing_timer.PrintElapsed();
@@ -500,8 +486,7 @@ void DumpRelatedTensTwoSiteAlg(
       );
     }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 #ifdef QLMPS_TIMING_MODE
   postprocessing_timer.PrintElapsed();

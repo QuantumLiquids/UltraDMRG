@@ -85,7 +85,7 @@ void RunTestMeasureOneSiteOpCase(
     const QLTensor<TenElemT, QNT> &op,
     const std::vector<TenElemT> &res
 ) {
-  auto measu_res = MeasureOneSiteOp(mps, op, "op1");
+  auto measu_res = MeasureOneSiteOp(mps, op, "local_op1");
   assert(measu_res.size() == res.size());
   for (size_t i = 0; i < res.size(); ++i) {
     ExpectDoubleEq(measu_res[i].avg, res[i]);

@@ -10,9 +10,9 @@
 #ifndef QLMPS_ALGORITHM_DMRG_DMRG_IMPL_H
 #define QLMPS_ALGORITHM_DMRG_DMRG_IMPL_H
 
+#include <string>
 #include "qlmps/consts.h"                                            // kMpsPath, kRuntimeTempPath
 #include "qlmps/algorithm/lanczos_params.h"                          // LanczParams
-#include <string>
 #include "qlmps/algorithm/vmps/two_site_update_finite_vmps_impl.h"   //MeasureEE
 #include "qlmps/algorithm/dmrg/lanczos_dmrg_solver_impl.h"           //LanczosSolver
 #include "qlmps/algorithm/dmrg/operator_io.h"                        //ReadOperatorGroup
@@ -23,15 +23,15 @@ using namespace qlten;
 //forward declaration
 template<typename TenElemT, typename QNT>
 RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
-  const std::vector<QLTensor<TenElemT, QNT>>& site_block_ops,
-  const QLTensor<TenElemT, QNT> &mps
+    const std::vector<QLTensor<TenElemT, QNT>> &site_block_ops,
+    const QLTensor<TenElemT, QNT> &mps
 );
 
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
-  const std::vector<QLTensor<TenElemT, QNT>>& block_site_ops,
-  const QLTensor<TenElemT, QNT> &mps
-  );
+    const std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,
+    const QLTensor<TenElemT, QNT> &mps
+);
 
 template<typename TenElemT, typename QNT>
 class DMRGExecutor : public Executor {
@@ -153,13 +153,13 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   return e0_;
 }
 
-template <typename TenT>
-double EvaluateOpMem(const std::vector<TenT>& ops) {
-    double total_mem = 0;
-    for(auto& op : ops){
-	total_mem += op.GetRawDataMemUsage();
-    }
-    return total_mem;
+template<typename TenT>
+double EvaluateOpMem(const std::vector<TenT> &ops) {
+  double total_mem = 0;
+  for (auto &op : ops) {
+    total_mem += op.GetRawDataMemUsage();
+  }
+  return total_mem;
 }
 
 template<typename TenElemT, typename QNT>
@@ -191,9 +191,9 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 
   switch (dir_) {
     case 'r':site_block_ops_.clear();
-    break;
-  case 'l':block_site_ops_.clear();
-    break;
+      break;
+    case 'l':block_site_ops_.clear();
+      break;
     default:assert(false);
   }
 
@@ -201,8 +201,8 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 #ifdef QLMPS_TIMING_MODE
   Timer svd_timer("two_site_dmrg_svd");
 #endif
-  Tensor* u = new Tensor();
-  Tensor* vt = new Tensor();
+  Tensor *u = new Tensor();
+  Tensor *vt = new Tensor();
   using DTenT = QLTensor<QLTEN_Double, QNT>;
   DTenT s;
   QLTEN_Double actual_trunc_err;
@@ -223,7 +223,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Timer update_mps_ten_timer("two_site_dmrg_update_mps_ten");
 #endif
 
-  Tensor* the_other_mps_ten = new Tensor();
+  Tensor *the_other_mps_ten = new Tensor();
   switch (dir_) {
     case 'r':mps_(l_site_) = u;
       Contract(&s, vt, {{1}, {0}}, the_other_mps_ten);
@@ -270,8 +270,8 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
             << " Iter = " << std::setw(3) << lancz_res.iters
             << " LanczT = " << std::setw(8) << lancz_elapsed_time
             << " TotT = " << std::setw(8) << update_elapsed_time
-	    << " StateMem = " << std::setw(8) << state_mem << "GB"
-	    << " OpsMem = " << std::setw(8) << block_site_mem + site_block_mem << "GB"
+            << " StateMem = " << std::setw(8) << state_mem << "GB"
+            << " OpsMem = " << std::setw(8) << block_site_mem + site_block_mem << "GB"
             << " S = " << std::setw(10) << std::setprecision(7) << ee;
   std::cout << std::scientific << std::endl;
   return lancz_res.gs_eng;

@@ -42,25 +42,25 @@ using DMPS2 = FiniteMPS<QLTEN_Double, U1U1QN>;
 using ZMPS = FiniteMPS<QLTEN_Complex, U1QN>;
 using ZMPS2 = FiniteMPS<QLTEN_Complex, U1U1QN>;
 
-boost::mpi::environment env;
-
 template<typename TenElemT, typename QNT>
 void RunTestDMRGCase(
     FiniteMPS<TenElemT, QNT> &mps,
     const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
     const FiniteVMPSSweepParams &sweep_params,
     const double benmrk_e0, const double precision,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
   size_t start_flop = flop;
   Timer dmrg_timer("dmrg");
-  auto e0 = FiniteDMRG(mps, mat_repr_mpo, sweep_params, world);
+  auto e0 = FiniteDMRG(mps, mat_repr_mpo, sweep_params, comm);
   double elapsed_time = dmrg_timer.Elapsed();
   size_t end_flop = flop;
   double Gflops = (end_flop - start_flop) * 1.e-9 / elapsed_time;
   std::cout << "flop = " << end_flop - start_flop << std::endl;
   std::cout << "Gflops = " << Gflops << std::endl;
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     EXPECT_NEAR(e0, benmrk_e0, precision);
     EXPECT_TRUE(mps.empty());
   }
@@ -92,13 +92,14 @@ struct TestDMRGSpinSystem : public testing::Test {
   ZQLTensor zsm = ZQLTensor({pb_in, pb_out});
   ZMPS zmps = ZMPS(zsite_vec_6);
 
-  mpi::communicator world;
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  int rank;
 
   void SetUp(void) {
-
+    MPI_Comm_rank(comm, &rank);
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
 
@@ -134,13 +135,13 @@ TEST_F(TestDMRGSpinSystem, 1DIsing) {
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
   DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
   }
 
-  RunTestDMRGCase(dmps, dmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, world);
+  RunTestDMRGCase(dmps, dmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, comm);
 
   dmps.Load(sweep_params.mps_path);
   MeasureOneSiteOp(dmps, dsz, "dsz");
@@ -167,18 +168,18 @@ TEST_F(TestDMRGSpinSystem, 1DIsing) {
       LanczosParams(1.0E-8)
   );
   DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
   }
-  RunTestDMRGCase(zmps, zmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, world);
+  RunTestDMRGCase(zmps, zmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, comm);
 
   zmps.Load(sweep_params.mps_path);
   MeasureOneSiteOp(zmps, zsz, "zsz");
   MeasureTwoSiteOp(zmps, {zsz, zsz}, zid, sites_set, "zszzsz");
   zmps.clear();
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
   }
@@ -201,18 +202,18 @@ TEST_F(TestDMRGSpinSystem, 1DHeisenberg) {
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
   DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
 
   }
-  world.barrier();
+  MPI_Barrier(comm);
   assert(IsPathExist(sweep_params.mps_path));
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
 
   // Continue simulation test
@@ -220,7 +221,7 @@ TEST_F(TestDMRGSpinSystem, 1DHeisenberg) {
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -238,7 +239,7 @@ TEST_F(TestDMRGSpinSystem, 1DHeisenberg) {
       LanczosParams(1.0E-7)
   );
   DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -246,9 +247,9 @@ TEST_F(TestDMRGSpinSystem, 1DHeisenberg) {
   RunTestDMRGCase(
       zmps, zmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
   }
@@ -282,7 +283,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
   DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
 //    RemoveFolder(sweep_params.mps_path);
 //    RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -290,7 +291,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -3.129385241572, 1.0E-12,
-      world
+      comm
   );
 
 
@@ -309,7 +310,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
       LanczosParams(1.0E-7)
   );
   DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -317,7 +318,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
   RunTestDMRGCase(
       zmps, zmpo, sweep_params,
       -3.129385241572, 1.0E-12,
-      world
+      comm
   );
 }
 
@@ -352,7 +353,7 @@ TEST_F(TestDMRGSpinSystem, 2DKitaevSimpleCase) {
   }
   auto dmps_8sites = DMPS(dsite_vec);
   ExtendDirectRandomInitMps(dmps_8sites, {stat_labs1, stat_labs2}, 2);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps_8sites.Dump(sweep_params.mps_path, true);
@@ -360,7 +361,7 @@ TEST_F(TestDMRGSpinSystem, 2DKitaevSimpleCase) {
   RunTestDMRGCase(
       dmps_8sites, dmpo, sweep_params,
       -1.0, 1.0E-12,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -379,21 +380,23 @@ TEST_F(TestDMRGSpinSystem, 2DKitaevSimpleCase) {
   auto zmpo = zmpo_gen.GenMatReprMPO();
   auto zmps_8sites = ZMPS(zsite_vec);
   ExtendDirectRandomInitMps(zmps_8sites, {stat_labs1, stat_labs2}, 2);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps_8sites.Dump(sweep_params.mps_path, true);
   }
   RunTestDMRGCase(
       zmps_8sites, zmpo, sweep_params,
-      -1.0, 1.0E-12, world);
+      -1.0, 1.0E-12, comm);
 }
 
 TEST(TestTwoSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
-  boost::mpi::communicator world;
+  const MPI_Comm comm =     MPI_COMM_WORLD;
+  int rank;
+  MPI_Comm_rank(comm, &rank);
   ::testing::TestEventListeners &listeners =
       ::testing::UnitTest::GetInstance()->listeners();
-  if (world.rank() != 0) {
+  if (rank != 0) {
     delete listeners.Release(listeners.default_result_printer());
   }
   using TenElemType = QLTEN_Complex;
@@ -503,12 +506,12 @@ TEST(TestTwoSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
       LanczosParams(1.0E-10)
   );
   DirectStateInitMps(mps, stat_labs);
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     mps.Dump(sweep_params.mps_path, true);
   }
-  RunTestDMRGCase(mps, mpo, sweep_params, -4.57509167674, 2.0E-10, world);
+  RunTestDMRGCase(mps, mpo, sweep_params, -4.57509167674, 2.0E-10, comm);
 }
 
 // Test fermion models.
@@ -547,9 +550,10 @@ struct TestTwoSiteAlgorithmTjSystem2U1Symm : public testing::Test {
   ZQLTensor2 zcdagdn = ZQLTensor2({pb_in, pb_out});
   ZMPS2 zmps = ZMPS2(zsite_vec_4);
 
-  boost::mpi::communicator world;
-
+  MPI_Comm comm =     MPI_COMM_WORLD;
+  int rank;
   void SetUp(void) {
+    MPI_Comm_rank(comm, &rank);
     df({0, 0}) = -1;
     df({1, 1}) = -1;
     df({2, 2}) = 1;
@@ -576,7 +580,7 @@ struct TestTwoSiteAlgorithmTjSystem2U1Symm : public testing::Test {
 
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
   }
@@ -601,7 +605,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
       LanczosParams(1.0E-8, 20)
   );
   DirectStateInitMps(dmps, {2, 1, 2, 0});
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -610,7 +614,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -6.947478526233, 1.0E-10,
-      world
+      comm
   );
 
 
@@ -627,7 +631,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   }
   auto zmpo = zmpo_gen.GenMatReprMPO();
   DirectStateInitMps(zmps, {2, 1, 2, 0});
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -635,7 +639,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   RunTestDMRGCase(
       zmps, zmpo, sweep_params,
       -6.947478526233, 1.0E-10,
-      world
+      comm
   );
 }
 
@@ -668,7 +672,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
 
   // Direct product state initialization.
   DirectStateInitMps(dmps, {2, 0, 1, 2});
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -676,7 +680,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -8.868563739680, 1.0E-10,
-      world
+      comm
   );
 
 
@@ -693,7 +697,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   }
   auto zmpo = zmpo_gen.GenMatReprMPO();
   DirectStateInitMps(zmps, {2, 0, 1, 2});
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -701,7 +705,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   RunTestDMRGCase(
       zmps, zmpo, sweep_params,
       -8.868563739680, 1.0E-10,
-      world
+      comm
   );
 }
 
@@ -724,9 +728,11 @@ struct TestTwoSiteAlgorithmTjSystem1U1Symm : public testing::Test {
   ZQLTensor zntot = ZQLTensor({pb_in, pb_out});
   ZQLTensor zid = ZQLTensor({pb_in, pb_out});
 
-  boost::mpi::communicator world;
+  MPI_Comm comm = MPI_COMM_WORLD;
+  int rank;
 
   void SetUp(void) {
+    MPI_Comm_rank(comm, &rank);
     zf({0, 0}) = -1;
     zf({1, 1}) = -1;
     zf({2, 2}) = 1;
@@ -746,7 +752,7 @@ struct TestTwoSiteAlgorithmTjSystem1U1Symm : public testing::Test {
 
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
   }
@@ -830,7 +836,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   );
   auto mps = ZMPS(site_vec);
   DirectStateInitMps(mps, {0, 1, 0, 2, 0, 1});
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     mps.Dump(sweep_params.mps_path, true);
@@ -838,7 +844,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   RunTestDMRGCase(
       mps, mpo, sweep_params,
       -11.018692166942165, 1.0E-10,
-      world
+      comm
   );
 }
 
@@ -886,9 +892,11 @@ struct TestTwoSiteAlgorithmHubbardSystem : public testing::Test {
   ZQLTensor2 zfadagdn = ZQLTensor2({pb_in, pb_out});    // f*a^+_dn
   ZMPS2 zmps = ZMPS2(zsite_vec);
 
-  mpi::communicator world;
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  int rank;
 
   void SetUp(void) {
+    MPI_Comm_rank(comm, &rank);
     df({0, 0}) = 1;
     df({1, 1}) = -1;
     df({2, 2}) = -1;
@@ -938,7 +946,7 @@ struct TestTwoSiteAlgorithmHubbardSystem : public testing::Test {
     zfadagdn({3, 1}) = 1;
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
   }
@@ -1003,7 +1011,7 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   std::vector<size_t> stat_labs(N);
   for (size_t i = 0; i < N; ++i) { stat_labs[i] = (i % 2 == 0 ? 1 : 2); }
   DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -1011,7 +1019,7 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   RunTestDMRGCase(
       dmps, dmpo, sweep_params,
       -2.828427124746, 1.0E-10,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -1064,7 +1072,7 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   }
   auto zmpo = zmpo_gen.GenMatReprMPO();
   DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -1072,7 +1080,7 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   RunTestDMRGCase(
       zmps, zmpo, sweep_params,
       -2.828427124746, 1.0E-10,
-      world
+      comm
   );
 }
 
@@ -1115,12 +1123,15 @@ struct TestKondoInsulatorSystem : public testing::Test {
 
   std::vector<IndexT> pb_set = std::vector<IndexT>(N);
 
-  mpi::communicator world;
+  MPI_Comm comm = MPI_COMM_WORLD;
+  int rank;
 
   void SetUp(void) {
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+
+    MPI_Comm_rank(comm, &rank);
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
 
@@ -1185,7 +1196,7 @@ TEST_F(TestKondoInsulatorSystem, doublechain) {
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
   DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -1194,12 +1205,20 @@ TEST_F(TestKondoInsulatorSystem, doublechain) {
       dmps, dmpo,
       sweep_params,
       -3.180025784229132, 1.0E-10,
-      world
+      comm
   );
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
   }
+}
+
+int main(int argc, char *argv[]) {
+  MPI_Init(nullptr, nullptr);
+  ::testing::InitGoogleTest(&argc, argv);
+  int test_err = RUN_ALL_TESTS();
+  MPI_Finalize();
+  return test_err;
 }
 
 

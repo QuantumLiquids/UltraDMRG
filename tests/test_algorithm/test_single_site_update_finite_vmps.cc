@@ -12,7 +12,6 @@
 #include "qlmps/qlmps.h"
 #include "../testing_utils.h"
 
-
 using namespace qlmps;
 using namespace qlten;
 
@@ -38,7 +37,6 @@ using DMPS2 = FiniteMPS<QLTEN_Double, U1U1QN>;
 using ZMPS = FiniteMPS<QLTEN_Complex, U1QN>;
 using ZMPS2 = FiniteMPS<QLTEN_Complex, U1U1QN>;
 
-
 template<typename TenElemT, typename QNT>
 void RunTestSingleSiteAlgorithmCase(
     FiniteMPS<TenElemT, QNT> &mps,
@@ -49,9 +47,7 @@ void RunTestSingleSiteAlgorithmCase(
   auto e0 = SingleSiteFiniteVMPS(mps, mpo, sweep_params);
   EXPECT_NEAR(e0, benmrk_e0, precision);
   EXPECT_TRUE(mps.empty());
-  mkl_free_buffers();
 }
-
 
 // Test spin systems
 struct TestSingleSiteAlgorithmSpinSystem : public testing::Test {
@@ -95,7 +91,6 @@ struct TestSingleSiteAlgorithmSpinSystem : public testing::Test {
     zsm({1, 0}) = 1;
   }
 };
-
 
 TEST_F(TestSingleSiteAlgorithmSpinSystem, 1DIsing) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
@@ -152,7 +147,6 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 1DIsing) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 TEST_F(TestSingleSiteAlgorithmSpinSystem, 1DHeisenberg) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
@@ -212,7 +206,6 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 1DHeisenberg) {
   RemoveFolder(sweep_params.temp_path);
 }
 
-
 TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DHeisenberg) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
   std::vector<std::pair<size_t, size_t>> nn_pairs = {
@@ -224,7 +217,7 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DHeisenberg) {
       std::make_pair(3, 5),
       std::make_pair(4, 5)
   };
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(1, {dsz, dsz}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsp, dsm}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsm, dsp}, {p.first, p.second});
@@ -256,7 +249,7 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DHeisenberg) {
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1QN>(zsite_vec_6, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(1, {zsz, zsz}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsp, zsm}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsm, zsp}, {p.first, p.second});
@@ -278,7 +271,6 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DHeisenberg) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DKitaevSimpleCase) {
   size_t Nx = 4;
@@ -344,7 +336,6 @@ TEST_F(TestSingleSiteAlgorithmSpinSystem, 2DKitaevSimpleCase) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 TEST(TestSingleSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
   using TenElemType = QLTEN_Complex;
@@ -464,7 +455,6 @@ TEST(TestSingleSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
   RemoveFolder(sweep_params.temp_path);
 }
 
-
 // Test fermion models.
 struct TestSingleSiteAlgorithmTjSystem2U1Symm : public testing::Test {
   size_t N = 4;
@@ -528,7 +518,6 @@ struct TestSingleSiteAlgorithmTjSystem2U1Symm : public testing::Test {
   }
 };
 
-
 TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1U1QN>(dsite_vec_4, qn0);
   for (size_t i = 0; i < N - 1; ++i) {
@@ -579,7 +568,6 @@ TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   RemoveFolder(sweep_params.temp_path);
 }
 
-
 TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1U1QN>(dsite_vec_4, qn0);
   std::vector<std::pair<int, int>> nn_pairs = {
@@ -587,7 +575,7 @@ TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 2DCase) {
       std::make_pair(0, 2),
       std::make_pair(2, 3),
       std::make_pair(1, 3)};
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(-t, dcdagup, p.first, dcup, p.second, df);
     dmpo_gen.AddTerm(-t, dcdagdn, p.first, dcdn, p.second, df);
     dmpo_gen.AddTerm(-t, dcup, p.first, dcdagup, p.second, df);
@@ -620,7 +608,7 @@ TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 2DCase) {
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1U1QN>(zsite_vec_4, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(-t, zcdagup, p.first, zcup, p.second, zf);
     zmpo_gen.AddTerm(-t, zcdagdn, p.first, zcdn, p.second, zf);
     zmpo_gen.AddTerm(-t, zcup, p.first, zcdagup, p.second, zf);
@@ -639,7 +627,6 @@ TEST_F(TestSingleSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 struct TestSingleSiteAlgorithmTjSystem1U1Symm : public testing::Test {
   U1QN qn0 = U1QN({QNCard("N", U1QNVal(0))});
@@ -679,7 +666,6 @@ struct TestSingleSiteAlgorithmTjSystem1U1Symm : public testing::Test {
     zid({2, 2}) = 1;
   }
 };
-
 
 TEST_F(TestSingleSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   double t = 3.0;
@@ -768,7 +754,6 @@ TEST_F(TestSingleSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 struct TestSingleSiteAlgorithmHubbardSystem : public testing::Test {
   size_t Nx = 2;
@@ -864,7 +849,6 @@ struct TestSingleSiteAlgorithmHubbardSystem : public testing::Test {
     zfadagdn({3, 1}) = 1;
   }
 };
-
 
 TEST_F(TestSingleSiteAlgorithmHubbardSystem, 2Dcase) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1U1QN>(dsite_vec, qn0);
@@ -993,7 +977,6 @@ TEST_F(TestSingleSiteAlgorithmHubbardSystem, 2Dcase) {
   RemoveFolder(sweep_params.temp_path);
 }
 
-
 // Test non-uniform local Hilbert spaces system.
 // Kondo insulator, ref 10.1103/PhysRevB.97.245119,
 struct TestKondoInsulatorSystem : public testing::Test {
@@ -1068,7 +1051,6 @@ struct TestKondoInsulatorSystem : public testing::Test {
   }
 };
 
-
 TEST_F(TestKondoInsulatorSystem, doublechain) {
   auto dsite_vec = DSiteVec(pb_set);
   auto dmps = DMPS(dsite_vec);
@@ -1106,7 +1088,6 @@ TEST_F(TestKondoInsulatorSystem, doublechain) {
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
-
 
 // Electron-phonon interaction Holstein chain, ref 10.1103/PhysRevB.57.6376
 struct TestSingleSiteAlgorithmElectronPhononSystem : public testing::Test {
@@ -1172,7 +1153,6 @@ struct TestSingleSiteAlgorithmElectronPhononSystem : public testing::Test {
   ZQLTensor2 zidB = ZQLTensor2({pb_inB, pb_outB}); // bosonic identity
   ZQLTensor2 zP0 = ZQLTensor2({pb_inB, pb_outB});
 
-
   void SetUp(void) {
     nf({0, 0}) = 2;
     nf({1, 1}) = 1;
@@ -1232,7 +1212,6 @@ struct TestSingleSiteAlgorithmElectronPhononSystem : public testing::Test {
     }
   }
 };
-
 
 TEST_F(TestSingleSiteAlgorithmElectronPhononSystem, holsteinchain) {
   DSiteVec2 dsite_vec = DSiteVec2(index_set);

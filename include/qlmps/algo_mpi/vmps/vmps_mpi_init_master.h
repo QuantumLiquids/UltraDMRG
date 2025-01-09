@@ -29,12 +29,10 @@
 #include "qlmps/one_dim_tn/mps_all.h"
 #include "qlmps/algorithm/finite_vmps_sweep_params.h"
 #include "qlmps/algo_mpi/vmps/two_site_update_finite_vmps_mpi.h"
-#include "boost/mpi.hpp"
 #include "qlmps/algorithm/vmps/vmps_init.h"                        // CheckAndUpdateBoundaryMPSTensors...
 
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 //forward declarition
 template<typename TenElemT, typename QNT>
@@ -69,7 +67,7 @@ void InitEnvsMaster(
     const std::string,
     const std::string,
     const size_t,
-    mpi::communicator &
+    const MPI_Comm &
 );
 
 template<typename TenElemT, typename QNT>
@@ -77,9 +75,11 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
     FiniteMPS<TenElemT, QNT> &mps,
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    mpi::communicator world) {
-
-  assert(world.rank() == 0);
+    const MPI_Comm &comm) {
+  int rank, mpi_size;
+  MPI_Comm_size(comm, &mpi_size);
+  MPI_Comm_rank(comm, &rank);
+  assert(rank == kMPIMasterRank);
   std::cout << "\n";
   std::cout << "=====> Two-Site MPI Update Sweep Parameters <=====" << "\n";
   std::cout << "MPS/MPO size: \t " << mpo.size() << "\n";
@@ -91,7 +91,7 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
   std::cout << "Temp path: \t" << sweep_params.temp_path << std::endl;
 
   std::cout << "=====> Technical Parameters <=====" << "\n";
-  std::cout << "The number of processors(including master): \t" << world.size() << "\n";
+  std::cout << "The number of processors(including master): \t" << mpi_size << "\n";
 #ifndef  USE_GPU
   std::cout << "The number of threads per processor: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
 #endif
@@ -119,8 +119,8 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
       sweep_params.temp_path)
       ) {
     std::cout << "=====> Creating the environment tensors =====>" << std::endl;
-    MasterBroadcastOrder(init_grow_env, world);
-    InitEnvsMaster(mps, mpo, sweep_params.mps_path, sweep_params.temp_path, left_boundary + 2, world);
+    MasterBroadcastOrder(init_grow_env, rank, comm);
+    InitEnvsMaster(mps, mpo, sweep_params.mps_path, sweep_params.temp_path, left_boundary + 2, comm);
   } else {
     std::cout << "The environment tensors have existed." << std::endl;
   }
@@ -132,14 +132,6 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
 }
 
 /** Generate the environment tensors before the first sweep
- *
- * @tparam TenElemT
- * @tparam QNT
- * @param mps
- * @param mpo
- * @param mps_path
- * @param temp_path
- * @param update_site_num
  */
 template<typename TenElemT, typename QNT>
 void InitEnvsMaster(
@@ -148,11 +140,12 @@ void InitEnvsMaster(
     const std::string mps_path,
     const std::string temp_path,
     const size_t update_site_num,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
   using TenT = QLTensor<TenElemT, QNT>;
   auto N = mps.size();
-
   TenT renv;
   //Write a trivial right environment tensor to disk
   mps.LoadTen(N - 1, GenMPSTenName(mps_path, N - 1));
@@ -168,8 +161,9 @@ void InitEnvsMaster(
   for (size_t i = 1; i <= N - update_site_num; ++i) {
     if (i > 1) { mps.LoadTen(N - i, GenMPSTenName(mps_path, N - i)); }
     auto file = GenEnvTenName("r", i, temp_path);
-    MasterBroadcastOrder(init_grow_env_grow, world);
-    TenT *prenv_next = MasterGrowRightEnvironmentInit(renv, mpo[N - i], mps[N - i], world);
+    MasterBroadcastOrder(init_grow_env_grow, rank, comm);
+    TenT *prenv_next = MasterGrowRightEnvironmentInit(renv,
+                                                      const_cast<TenT &> (mpo[N - i]), mps[N - i], comm);
     renv = std::move(*prenv_next);
     delete prenv_next;
     WriteQLTensorTOFile(renv, file);
@@ -189,7 +183,7 @@ void InitEnvsMaster(
   mps.dealloc(0);
 
   assert(mps.empty());
-  MasterBroadcastOrder(init_grow_env_finish, world);
+  MasterBroadcastOrder(init_grow_env_finish, rank, comm);
 }
 
 }//qlmps

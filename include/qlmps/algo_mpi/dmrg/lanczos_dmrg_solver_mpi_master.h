@@ -17,7 +17,7 @@
 */
 #include "qlmps/algorithm/lanczos_params.h"    // LanczosParams
 #include "qlten/qlten.h"
-#include "qlten/utility/timer.h"                // Timer
+#include "qlten/utility/timer.h"               // Timer
 #include "qlmps/algorithm/dmrg/dmrg.h"         // EffectiveHamiltonianTerm
 #include "qlmps/algo_mpi/mps_algo_order.h"
 
@@ -68,7 +68,7 @@ LanczosRes<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
 #ifdef QLMPS_TIMING_MODE
   Timer mat_vec_timer("lancz_mat_vec");
 #endif
-  MasterBroadcastOrder(lanczos_mat_vec_dynamic, world_);
+  MasterBroadcastOrder(lanczos_mat_vec_dynamic, rank_, comm_);
 
   auto last_mat_mul_vec_res =
       DynamicHamiltonianMultiplyState_(*bases[0]);
@@ -112,7 +112,7 @@ LanczosRes<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
         lancz_res.gs_eng = energy0;
         lancz_res.gs_vec = new Tensor(*bases[0]);
         LanczosFree(eigvec, bases, last_mat_mul_vec_res);
-        MasterBroadcastOrder(lanczos_finish, world_);
+        MasterBroadcastOrder(lanczos_finish, rank_, comm_);
         return lancz_res;
       } else {
         TridiagGsSolver(a, b, m, eigval, eigvec, 'V');
@@ -122,7 +122,7 @@ LanczosRes<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
         lancz_res.gs_eng = energy0;
         lancz_res.gs_vec = gs_vec;
         LanczosFree(eigvec, bases, m, last_mat_mul_vec_res);
-        MasterBroadcastOrder(lanczos_finish, world_);
+        MasterBroadcastOrder(lanczos_finish, rank_, comm_);
         return lancz_res;
       }
     }
@@ -134,7 +134,7 @@ LanczosRes<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.ClearAndRestart();
 #endif
-    MasterBroadcastOrder(lanczos_mat_vec_static, world_);
+    MasterBroadcastOrder(lanczos_mat_vec_static, rank_, comm_);
     last_mat_mul_vec_res = StaticHamiltonianMultiplyState_(*bases[m], a[m]);
 
 #ifdef QLMPS_TIMING_MODE
@@ -157,7 +157,7 @@ LanczosRes<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
       lancz_res.gs_eng = energy0;
       lancz_res.gs_vec = gs_vec;
       LanczosFree(eigvec, bases, m + 1, last_mat_mul_vec_res);
-      MasterBroadcastOrder(lanczos_finish, world_);
+      MasterBroadcastOrder(lanczos_finish, rank_, comm_);
       return lancz_res;
     } else {
       energy0 = energy0_new;
@@ -183,8 +183,8 @@ QLTensor<TenElemT, QNT> *DMRGMPIMasterExecutor<TenElemT, QNT>::DynamicHamiltonia
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_state_timer("broadcast_state_send");
 #endif
-  mpi::broadcast(world_, num_terms, kMasterRank);
-  SendBroadCastQLTensor(world_, state, kMasterRank);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&num_terms, 1, MPI_UNSIGNED_LONG_LONG, rank_, comm_));
+  state.MPI_Bcast(rank_, comm_);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_state_timer.PrintElapsed();
 #endif
@@ -205,19 +205,19 @@ QLTensor<TenElemT, QNT> *DMRGMPIMasterExecutor<TenElemT, QNT>::DynamicHamiltonia
 
   for (size_t task_id = 0; task_id < task_num; task_id++) {
     Tensor recv_res;
-    auto recv_status = recv_qlten(world_, mpi::any_source, mpi::any_tag, recv_res);
-    if (recv_status.tag() < task_num) {
-      multiplication_res[recv_status.tag()] = std::move(recv_res);
+    auto status = recv_res.MPI_Recv(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+    if (status.MPI_TAG < task_num) {
+      multiplication_res[status.MPI_TAG] = std::move(recv_res);
     }
-    size_t slave_id = recv_status.source();
-    world_.send(slave_id, slave_id, task_id);
+    size_t worker = status.MPI_SOURCE;
+    hp_numeric::MPI_Send(task_id, worker, worker, comm_);
     auto &block_site_terms = hamiltonian_terms_[task_id].first;
     auto &site_block_terms = hamiltonian_terms_[task_id].second;
 #ifdef QLMPS_TIMING_MODE
     dispatch_ham_timer.Restart();
 #endif
-    SendBlockSiteHamiltonianTermGroup_(block_site_terms, slave_id);
-    SendSiteBlockHamiltonianTermGroup_(site_block_terms, slave_id);
+    SendBlockSiteHamiltonianTermGroup_(block_site_terms, worker);
+    SendSiteBlockHamiltonianTermGroup_(site_block_terms, worker);
 #ifdef QLMPS_TIMING_MODE
     dispatch_ham_timer.Suspend();
 #endif
@@ -226,15 +226,14 @@ QLTensor<TenElemT, QNT> *DMRGMPIMasterExecutor<TenElemT, QNT>::DynamicHamiltonia
   dispatch_ham_timer.PrintElapsed();
 #endif
 
-  const size_t termination_signal = task_num + 10086;//10086 is chosen to make a mock.
-  for (size_t i = 1; i <= slave_num_; i++) {
+  for (size_t i = 1; i <= worker_num_; i++) {
     Tensor recv_res;
-    auto recv_status = recv_qlten(world_, mpi::any_source, mpi::any_tag, recv_res);
-    if (recv_status.tag() < task_num) {
-      multiplication_res[recv_status.tag()] = std::move(recv_res);
+    auto status = recv_res.MPI_Recv(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+    if (status.MPI_TAG < task_num) {
+      multiplication_res[status.MPI_TAG] = std::move(recv_res);
     }
-    size_t slave_id = recv_status.source();
-    world_.send(slave_id, slave_id, termination_signal);
+    size_t worker = status.MPI_SOURCE;
+    hp_numeric::MPI_Send(FinalSignal(task_num), worker, worker, comm_);
   }
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer sum_state_timer("parallel_summation_reduce");
@@ -256,19 +255,19 @@ QLTensor<TenElemT, QNT> *DMRGMPIMasterExecutor<TenElemT, QNT>::StaticHamiltonian
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_state_timer("broadcast_state_send");
 #endif
-  SendBroadCastQLTensor(world_, state, kMasterRank);
+  state.MPI_Bcast(rank_, comm_);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_state_timer.PrintElapsed();
 #endif
-  auto multiplication_res = std::vector<Tensor>(slave_num_, Tensor(state.GetIndexes()));
-  auto pmultiplication_res = std::vector<Tensor *>(slave_num_);
-  const std::vector<TenElemT> &coefs = std::vector<TenElemT>(slave_num_, TenElemT(1.0));
-  for (size_t i = 0; i < slave_num_; i++) {
+  auto multiplication_res = std::vector<Tensor>(worker_num_, Tensor(state.GetIndexes()));
+  auto pmultiplication_res = std::vector<Tensor *>(worker_num_);
+  const std::vector<TenElemT> &coefs = std::vector<TenElemT>(worker_num_, TenElemT(1.0));
+  for (size_t i = 0; i < worker_num_; i++) {
     pmultiplication_res[i] = &multiplication_res[i];
   }
-  for (size_t i = 0; i < slave_num_; i++) {
-    auto& bsdt = multiplication_res[i].GetBlkSparDataTen();
-    bsdt.MPIRecv(world_, mpi::any_source, 10085);
+  for (size_t i = 0; i < worker_num_; i++) {
+    auto &bsdt = multiplication_res[i].GetBlkSparDataTen();
+    bsdt.MPI_Recv(comm_, MPI_ANY_SOURCE, 10085);
   }
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer sum_state_timer("parallel_summation_reduce");
@@ -278,9 +277,10 @@ QLTensor<TenElemT, QNT> *DMRGMPIMasterExecutor<TenElemT, QNT>::StaticHamiltonian
 #ifdef QLMPS_MPI_TIMING_MODE
   sum_state_timer.PrintElapsed();
 #endif
-  for (size_t i = 1; i <= slave_num_; i++) {
+  for (size_t i = 1; i <= worker_num_; i++) {
     QLTEN_Double sub_overlap;
-    world_.recv(mpi::any_source, 10087, sub_overlap);
+    MPI_Status status;
+    HANDLE_MPI_ERROR(::MPI_Recv(&sub_overlap, 1, MPI_DOUBLE, MPI_ANY_SOURCE, 10087, comm_, &status));
     overlap += sub_overlap;
   }
   return res;

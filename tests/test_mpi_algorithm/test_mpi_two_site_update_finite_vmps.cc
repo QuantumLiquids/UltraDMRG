@@ -3,43 +3,15 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2021-08-26
 *
-* Description: GraceQ/mps2 project. Unittest for MPI two sites algorithm.
+* Description: QuantumLiquids/DMRG project. Unittest for MPI two sites algorithm.
 */
 
 #include "gtest/gtest.h"
-#include "boost/mpi.hpp"
-
-#include "qlmps/qlmps.h"
-#include "qlten/qlten.h"
 #include "../testing_utils.h"
-
+#include "mpi_test_systems.h"
 
 using namespace qlmps;
 using namespace qlten;
-
-using U1QN = QN<U1QNVal>;
-using U1U1QN = QN<U1QNVal, U1QNVal>;
-
-using IndexT = Index<U1QN>;
-using IndexT2 = Index<U1U1QN>;
-using QNSctT = QNSector<U1QN>;
-using QNSctT2 = QNSector<U1U1QN>;
-using QNSctVecT = QNSectorVec<U1QN>;
-using QNSctVecT2 = QNSectorVec<U1U1QN>;
-using DQLTensor = QLTensor<QLTEN_Double, U1QN>;
-using DQLTensor2 = QLTensor<QLTEN_Double, U1U1QN>;
-using ZQLTensor = QLTensor<QLTEN_Complex, U1QN>;
-using ZQLTensor2 = QLTensor<QLTEN_Complex, U1U1QN>;
-using DSiteVec = SiteVec<QLTEN_Double, U1QN>;
-using DSiteVec2 = SiteVec<QLTEN_Double, U1U1QN>;
-using ZSiteVec = SiteVec<QLTEN_Complex, U1QN>;
-using ZSiteVec2 = SiteVec<QLTEN_Complex, U1U1QN>;
-using DMPS = FiniteMPS<QLTEN_Double, U1QN>;
-using DMPS2 = FiniteMPS<QLTEN_Double, U1U1QN>;
-using ZMPS = FiniteMPS<QLTEN_Complex, U1QN>;
-using ZMPS2 = FiniteMPS<QLTEN_Complex, U1U1QN>;
-
-boost::mpi::environment env;
 
 template<typename TenElemT, typename QNT>
 void RunTestMPIVMPSCase(
@@ -47,76 +19,26 @@ void RunTestMPIVMPSCase(
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params,
     const double benmrk_e0, const double precision,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
+  assert(mps.empty());
+  int rank, mpi_size;
+  MPI_Comm_size(comm, &mpi_size);
+  MPI_Comm_rank(comm, &rank);
   size_t start_flops = flop;
   Timer contract_timer("dmrg");
-  auto e0 = TwoSiteFiniteVMPS(mps, mpo, sweep_params, world);
+  auto e0 = TwoSiteFiniteVMPS(mps, mpo, sweep_params, comm);
   double elapsed_time = contract_timer.Elapsed();
   size_t end_flops = flop;
   double Gflops_s = (end_flops - start_flops) * 1.e-9 / elapsed_time;
   std::cout << "flops = " << end_flops - start_flops << std::endl;
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     EXPECT_NEAR(e0, benmrk_e0, precision);
     EXPECT_TRUE(mps.empty());
   }
 }
 
-
-// Test spin systems
-struct TestVMPSSpinSystem : public testing::Test {
-  size_t N = 6;
-
-  U1QN qn0 = U1QN({QNCard("Sz", U1QNVal(0))});
-  IndexT pb_out = IndexT({
-                             QNSctT(U1QN({QNCard("Sz", U1QNVal(1))}), 1),
-                             QNSctT(U1QN({QNCard("Sz", U1QNVal(-1))}), 1)},
-                         TenIndexDirType::OUT
-  );
-  IndexT pb_in = InverseIndex(pb_out);
-  DSiteVec dsite_vec_6 = DSiteVec(N, pb_out);
-  ZSiteVec zsite_vec_6 = ZSiteVec(N, pb_out);
-
-  DQLTensor did = DQLTensor({pb_in, pb_out});
-  DQLTensor dsz = DQLTensor({pb_in, pb_out});
-  DQLTensor dsp = DQLTensor({pb_in, pb_out});
-  DQLTensor dsm = DQLTensor({pb_in, pb_out});
-  DMPS dmps = DMPS(dsite_vec_6);
-
-  ZQLTensor zid = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsz = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsp = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsm = ZQLTensor({pb_in, pb_out});
-  ZMPS zmps = ZMPS(zsite_vec_6);
-
-  mpi::communicator world;
-
-  void SetUp(void) {
-
-    ::testing::TestEventListeners &listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
-      delete listeners.Release(listeners.default_result_printer());
-    }
-
-    did({0, 0}) = 1;
-    did({1, 1}) = 1;
-    dsz({0, 0}) = 0.5;
-    dsz({1, 1}) = -0.5;
-    dsp({0, 1}) = 1;
-    dsm({1, 0}) = 1;
-
-    zid({0, 0}) = 1;
-    zid({1, 1}) = 1;
-    zsz({0, 0}) = 0.5;
-    zsz({1, 1}) = -0.5;
-    zsp({0, 1}) = 1;
-    zsm({1, 0}) = 1;
-
-  }
-};
-
-TEST_F(TestVMPSSpinSystem, 1DIsing) {
+TEST_F(Test1DSpinSystem, 1DIsing) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
   for (size_t i = 0; i < N - 1; ++i) {
     dmpo_gen.AddTerm(1, {dsz, dsz}, {i, i + 1});
@@ -130,14 +52,14 @@ TEST_F(TestVMPSSpinSystem, 1DIsing) {
   );
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
-  DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(dmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
   }
 
-  RunTestMPIVMPSCase(dmps, dmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, world);
+  RunTestMPIVMPSCase(dmps, dmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, comm);
 
   dmps.Load(sweep_params.mps_path);
   MeasureOneSiteOp(dmps, dsz, "dsz");
@@ -150,8 +72,6 @@ TEST_F(TestVMPSSpinSystem, 1DIsing) {
   MeasureTwoSiteOp(dmps, {dsz, dsz}, did, sites_set, "dszdsz");
   dmps.clear();
 
-
-
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1QN>(zsite_vec_6, qn0);
   for (size_t i = 0; i < N - 1; ++i) {
@@ -163,13 +83,13 @@ TEST_F(TestVMPSSpinSystem, 1DIsing) {
       1, 10, 1.0E-5,
       LanczosParams(1.0E-7)
   );
-  DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(zmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
   }
-  RunTestMPIVMPSCase(zmps, zmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, world);
+  RunTestMPIVMPSCase(zmps, zmpo, sweep_params, -0.25 * (N - 1), 1.0E-10, comm);
 
   zmps.Load(sweep_params.mps_path);
   MeasureOneSiteOp(zmps, zsz, "zsz");
@@ -180,7 +100,7 @@ TEST_F(TestVMPSSpinSystem, 1DIsing) {
   RemoveFolder(sweep_params.temp_path);
 }
 
-TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
+TEST_F(Test1DSpinSystem, 1DHeisenberg) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
   for (size_t i = 0; i < N - 1; ++i) {
     dmpo_gen.AddTerm(1, {dsz, dsz}, {i, i + 1});
@@ -196,8 +116,8 @@ TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
   );
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
-  DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(dmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -205,7 +125,7 @@ TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
 
   // Continue simulation test
@@ -213,7 +133,7 @@ TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -230,8 +150,9 @@ TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
       8, 8, 1.0E-9,
       LanczosParams(1.0E-7)
   );
-  DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(zmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -239,13 +160,13 @@ TEST_F(TestVMPSSpinSystem, 1DHeisenberg) {
   RunTestMPIVMPSCase(
       zmps, zmpo, sweep_params,
       -2.493577133888, 1.0E-12,
-      world
+      comm
   );
   RemoveFolder(sweep_params.mps_path);
   RemoveFolder(sweep_params.temp_path);
 }
 
-TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
+TEST_F(Test1DSpinSystem, 2DHeisenberg) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1QN>(dsite_vec_6, qn0);
   std::vector<std::pair<size_t, size_t>> nn_pairs = {
       std::make_pair(0, 1),
@@ -256,7 +177,7 @@ TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
       std::make_pair(3, 5),
       std::make_pair(4, 5)
   };
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(1, {dsz, dsz}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsp, dsm}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsm, dsp}, {p.first, p.second});
@@ -272,8 +193,8 @@ TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
   // Test direct product state initialization.
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
-  DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(dmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -281,13 +202,13 @@ TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -3.129385241572, 1.0E-12,
-      world
+      comm
   );
 
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1QN>(zsite_vec_6, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(1, {zsz, zsz}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsp, zsm}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsm, zsp}, {p.first, p.second});
@@ -299,8 +220,8 @@ TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
       8, 8, 1.0E-9,
       LanczosParams(1.0E-7)
   );
-  DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(zmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -308,11 +229,11 @@ TEST_F(TestVMPSSpinSystem, 2DHeisenberg) {
   RunTestMPIVMPSCase(
       zmps, zmpo, sweep_params,
       -3.129385241572, 1.0E-12,
-      world
+      comm
   );
 }
 
-TEST_F(TestVMPSSpinSystem, 2DKitaevSimpleCase) {
+TEST_F(Test1DSpinSystem, 2DKitaevSimpleCase) {
   size_t Nx = 4;
   size_t Ny = 2;
   size_t N1 = Nx * Ny;
@@ -342,8 +263,8 @@ TEST_F(TestVMPSSpinSystem, 2DKitaevSimpleCase) {
     stat_labs2.push_back((i + 1) % 2);
   }
   auto dmps_8sites = DMPS(dsite_vec);
-  ExtendDirectRandomInitMps(dmps_8sites, {stat_labs1, stat_labs2}, 2);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    ExtendDirectRandomInitMps(dmps_8sites, {stat_labs1, stat_labs2}, 2);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps_8sites.Dump(sweep_params.mps_path, true);
@@ -351,7 +272,7 @@ TEST_F(TestVMPSSpinSystem, 2DKitaevSimpleCase) {
   RunTestMPIVMPSCase(
       dmps_8sites, dmpo, sweep_params,
       -1.0, 1.0E-12,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -369,22 +290,25 @@ TEST_F(TestVMPSSpinSystem, 2DKitaevSimpleCase) {
   }
   auto zmpo = zmpo_gen.Gen();
   auto zmps_8sites = ZMPS(zsite_vec);
-  ExtendDirectRandomInitMps(zmps_8sites, {stat_labs1, stat_labs2}, 2);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    ExtendDirectRandomInitMps(zmps_8sites, {stat_labs1, stat_labs2}, 2);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps_8sites.Dump(sweep_params.mps_path, true);
   }
   RunTestMPIVMPSCase(
       zmps_8sites, zmpo, sweep_params,
-      -1.0, 1.0E-12, world);
+      -1.0, 1.0E-12, comm);
 }
 
 TEST(TestTwoSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
-  boost::mpi::communicator world;
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  int rank, mpi_size;
+  MPI_Comm_size(comm, &mpi_size);
+  MPI_Comm_rank(comm, &rank);
   ::testing::TestEventListeners &listeners =
       ::testing::UnitTest::GetInstance()->listeners();
-  if (world.rank() != 0) {
+  if (rank != 0) {
     delete listeners.Release(listeners.default_result_printer());
   }
   using TenElemType = QLTEN_Complex;
@@ -493,85 +417,14 @@ TEST(TestTwoSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
       60, 60, 1.0E-4,
       LanczosParams(1.0E-10)
   );
-  DirectStateInitMps(mps, stat_labs);
-  if (world.rank() == 0) {
+  if (rank == 0) {
+    DirectStateInitMps(mps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     mps.Dump(sweep_params.mps_path, true);
   }
-  RunTestMPIVMPSCase(mps, mpo, sweep_params, -4.57509167674, 2.0E-10, world);
+  RunTestMPIVMPSCase(mps, mpo, sweep_params, -4.57509167674, 2.0E-10, comm);
 }
-
-// Test fermion models.
-struct TestTwoSiteAlgorithmTjSystem2U1Symm : public testing::Test {
-  size_t N = 4;
-  double t = 3.0;
-  double J = 1.0;
-  U1U1QN qn0 = U1U1QN({QNCard("N", U1QNVal(0)), QNCard("Sz", U1QNVal(0))});
-  IndexT2 pb_out = IndexT2({
-                               QNSctT2(U1U1QN({QNCard("N", U1QNVal(1)), QNCard("Sz", U1QNVal(1))}), 1),
-                               QNSctT2(U1U1QN({QNCard("N", U1QNVal(1)), QNCard("Sz", U1QNVal(-1))}), 1),
-                               QNSctT2(U1U1QN({QNCard("N", U1QNVal(0)), QNCard("Sz", U1QNVal(0))}), 1)},
-                           TenIndexDirType::OUT
-  );
-  IndexT2 pb_in = InverseIndex(pb_out);
-  DSiteVec2 dsite_vec_4 = DSiteVec2(N, pb_out);
-  ZSiteVec2 zsite_vec_4 = ZSiteVec2(N, pb_out);
-
-  DQLTensor2 df = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dsz = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dsp = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dsm = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dcup = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dcdagup = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dcdn = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dcdagdn = DQLTensor2({pb_in, pb_out});
-  DMPS2 dmps = DMPS2(dsite_vec_4);
-
-  ZQLTensor2 zf = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zsz = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zsp = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zsm = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zcup = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zcdagup = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zcdn = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zcdagdn = ZQLTensor2({pb_in, pb_out});
-  ZMPS2 zmps = ZMPS2(zsite_vec_4);
-
-  boost::mpi::communicator world;
-
-  void SetUp(void) {
-    df({0, 0}) = -1;
-    df({1, 1}) = -1;
-    df({2, 2}) = 1;
-    dsz({0, 0}) = 0.5;
-    dsz({1, 1}) = -0.5;
-    dsp({1, 0}) = 1;
-    dsm({0, 1}) = 1;
-    dcup({0, 2}) = 1;
-    dcdagup({2, 0}) = 1;
-    dcdn({1, 2}) = 1;
-    dcdagdn({2, 1}) = 1;
-
-    zf({0, 0}) = -1;
-    zf({1, 1}) = -1;
-    zf({2, 2}) = 1;
-    zsz({0, 0}) = 0.5;
-    zsz({1, 1}) = -0.5;
-    zsp({1, 0}) = 1;
-    zsm({0, 1}) = 1;
-    zcup({0, 2}) = 1;
-    zcdagup({2, 0}) = 1;
-    zcdn({1, 2}) = 1;
-    zcdagdn({2, 1}) = 1;
-
-    ::testing::TestEventListeners &listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
-      delete listeners.Release(listeners.default_result_printer());
-    }
-  }
-};
 
 TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1U1QN>(dsite_vec_4, qn0);
@@ -591,8 +444,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
       8, 8, 1.0E-9,
       LanczosParams(1.0E-8, 20)
   );
-  DirectStateInitMps(dmps, {2, 1, 2, 0});
-  if (world.rank() == 0) {
+  if (rank == 0) {
+    DirectStateInitMps(dmps, {2, 1, 2, 0});
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -601,7 +454,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -6.947478526233, 1.0E-10,
-      world
+      comm
   );
 
 
@@ -617,8 +470,9 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
     zmpo_gen.AddTerm(J / 2, zsm, i, zsp, i + 1);
   }
   auto zmpo = zmpo_gen.Gen();
-  DirectStateInitMps(zmps, {2, 1, 2, 0});
-  if (world.rank() == 0) {
+
+  if (rank == 0) {
+    DirectStateInitMps(zmps, {2, 1, 2, 0});
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -626,7 +480,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 1DCase) {
   RunTestMPIVMPSCase(
       zmps, zmpo, sweep_params,
       -6.947478526233, 1.0E-10,
-      world
+      comm
   );
 }
 
@@ -637,7 +491,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
       std::make_pair(0, 2),
       std::make_pair(2, 3),
       std::make_pair(1, 3)};
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(-t, dcdagup, p.first, dcup, p.second, df);
     dmpo_gen.AddTerm(-t, dcdagdn, p.first, dcdn, p.second, df);
     dmpo_gen.AddTerm(-t, dcup, p.first, dcdagup, p.second, df);
@@ -658,8 +512,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   auto zero_div = U1U1QN({QNCard("N", U1QNVal(0)), QNCard("Sz", U1QNVal(0))});
 
   // Direct product state initialization.
-  DirectStateInitMps(dmps, {2, 0, 1, 2});
-  if (world.rank() == 0) {
+  if (rank == 0) {
+    DirectStateInitMps(dmps, {2, 0, 1, 2});
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -667,13 +521,13 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -8.868563739680, 1.0E-10,
-      world
+      comm
   );
 
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1U1QN>(zsite_vec_4, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(-t, zcdagup, p.first, zcup, p.second, zf);
     zmpo_gen.AddTerm(-t, zcdagdn, p.first, zcdn, p.second, zf);
     zmpo_gen.AddTerm(-t, zcup, p.first, zcdagup, p.second, zf);
@@ -683,8 +537,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
     zmpo_gen.AddTerm(J / 2, zsm, p.first, zsp, p.second);
   }
   auto zmpo = zmpo_gen.Gen();
-  DirectStateInitMps(zmps, {2, 0, 1, 2});
-  if (world.rank() == 0) {
+  if (rank == 0) {
+    DirectStateInitMps(zmps, {2, 0, 1, 2});
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -692,56 +546,9 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   RunTestMPIVMPSCase(
       zmps, zmpo, sweep_params,
       -8.868563739680, 1.0E-10,
-      world
+      comm
   );
 }
-
-struct TestTwoSiteAlgorithmTjSystem1U1Symm : public testing::Test {
-  U1QN qn0 = U1QN({QNCard("N", U1QNVal(0))});
-  IndexT pb_out = IndexT({
-                             QNSctT(U1QN({QNCard("N", U1QNVal(1))}), 2),
-                             QNSctT(U1QN({QNCard("N", U1QNVal(0))}), 1)},
-                         TenIndexDirType::OUT
-  );
-  IndexT pb_in = InverseIndex(pb_out);
-  ZQLTensor zf = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsz = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsp = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zsm = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zcup = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zcdagup = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zcdn = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zcdagdn = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zntot = ZQLTensor({pb_in, pb_out});
-  ZQLTensor zid = ZQLTensor({pb_in, pb_out});
-
-  boost::mpi::communicator world;
-
-  void SetUp(void) {
-    zf({0, 0}) = -1;
-    zf({1, 1}) = -1;
-    zf({2, 2}) = 1;
-    zsz({0, 0}) = 0.5;
-    zsz({1, 1}) = -0.5;
-    zsp({0, 1}) = 1;
-    zsm({1, 0}) = 1;
-    zcup({2, 0}) = 1;
-    zcdagup({0, 2}) = 1;
-    zcdn({2, 1}) = 1;
-    zcdagdn({1, 2}) = 1;
-    zntot({0, 0}) = 1;
-    zntot({1, 1}) = 1;
-    zid({0, 0}) = 1;
-    zid({1, 1}) = 1;
-    zid({2, 2}) = 1;
-
-    ::testing::TestEventListeners &listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
-      delete listeners.Release(listeners.default_result_printer());
-    }
-  }
-};
 
 TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   double t = 3.0;
@@ -820,8 +627,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
       LanczosParams(1.0E-14, 100)
   );
   auto mps = ZMPS(site_vec);
-  DirectStateInitMps(mps, {0, 1, 0, 2, 0, 1});
-  if (world.rank() == 0) {
+  if (rank == 0) {
+    DirectStateInitMps(mps, {0, 1, 0, 2, 0, 1});
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     mps.Dump(sweep_params.mps_path, true);
@@ -829,111 +636,9 @@ TEST_F(TestTwoSiteAlgorithmTjSystem1U1Symm, RashbaTermCase) {
   RunTestMPIVMPSCase(
       mps, mpo, sweep_params,
       -11.018692166942165, 1.0E-10,
-      world
+      comm
   );
 }
-
-struct TestTwoSiteAlgorithmHubbardSystem : public testing::Test {
-  size_t Nx = 2;
-  size_t Ny = 2;
-  size_t N = Nx * Ny;
-  double t0 = 1.0;
-  double t1 = 0.5;
-  double U = 2.0;
-
-  U1U1QN qn0 = U1U1QN({QNCard("Nup", U1QNVal(0)), QNCard("Ndn", U1QNVal(0))});
-  IndexT2 pb_out = IndexT2({
-                               QNSctT2(U1U1QN({QNCard("Nup", U1QNVal(0)), QNCard("Ndn", U1QNVal(0))}), 1),
-                               QNSctT2(U1U1QN({QNCard("Nup", U1QNVal(1)), QNCard("Ndn", U1QNVal(0))}), 1),
-                               QNSctT2(U1U1QN({QNCard("Nup", U1QNVal(0)), QNCard("Ndn", U1QNVal(1))}), 1),
-                               QNSctT2(U1U1QN({QNCard("Nup", U1QNVal(1)), QNCard("Ndn", U1QNVal(1))}), 1)},
-                           TenIndexDirType::OUT
-  );
-  IndexT2 pb_in = InverseIndex(pb_out);
-  DSiteVec2 dsite_vec = DSiteVec2(N, pb_out);
-  ZSiteVec2 zsite_vec = ZSiteVec2(N, pb_out);
-
-  DQLTensor2 df = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dnupdn = DQLTensor2({pb_in, pb_out});    // n_up*n_dn
-  DQLTensor2 dadagupf = DQLTensor2({pb_in, pb_out});    // a^+_up*f
-  DQLTensor2 daup = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dadagdn = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dfadn = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dnaupf = DQLTensor2({pb_in, pb_out});    // -a_up*f
-  DQLTensor2 dadagup = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dnadn = DQLTensor2({pb_in, pb_out});
-  DQLTensor2 dfadagdn = DQLTensor2({pb_in, pb_out});    // f*a^+_dn
-  DMPS2 dmps = DMPS2(dsite_vec);
-
-  ZQLTensor2 zf = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 znupdn = ZQLTensor2({pb_in, pb_out});    // n_up*n_dn
-  ZQLTensor2 zadagupf = ZQLTensor2({pb_in, pb_out});    // a^+_up*f
-  ZQLTensor2 zaup = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zadagdn = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zfadn = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 znaupf = ZQLTensor2({pb_in, pb_out});    // -a_up*f
-  ZQLTensor2 zadagup = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 znadn = ZQLTensor2({pb_in, pb_out});
-  ZQLTensor2 zfadagdn = ZQLTensor2({pb_in, pb_out});    // f*a^+_dn
-  ZMPS2 zmps = ZMPS2(zsite_vec);
-
-  mpi::communicator world;
-
-  void SetUp(void) {
-    df({0, 0}) = 1;
-    df({1, 1}) = -1;
-    df({2, 2}) = -1;
-    df({3, 3}) = 1;
-
-    dnupdn({3, 3}) = 1;
-
-    dadagupf({1, 0}) = 1;
-    dadagupf({3, 2}) = -1;
-    daup({0, 1}) = 1;
-    daup({2, 3}) = 1;
-    dadagdn({2, 0}) = 1;
-    dadagdn({3, 1}) = 1;
-    dfadn({0, 2}) = 1;
-    dfadn({1, 3}) = -1;
-    dnaupf({0, 1}) = 1;
-    dnaupf({2, 3}) = -1;
-    dadagup({1, 0}) = 1;
-    dadagup({3, 2}) = 1;
-    dnadn({0, 2}) = -1;
-    dnadn({1, 3}) = -1;
-    dfadagdn({2, 0}) = -1;
-    dfadagdn({3, 1}) = 1;
-
-    zf({0, 0}) = 1;
-    zf({1, 1}) = -1;
-    zf({2, 2}) = -1;
-    zf({3, 3}) = 1;
-
-    znupdn({3, 3}) = 1;
-
-    zadagupf({1, 0}) = 1;
-    zadagupf({3, 2}) = -1;
-    zaup({0, 1}) = 1;
-    zaup({2, 3}) = 1;
-    zadagdn({2, 0}) = 1;
-    zadagdn({3, 1}) = 1;
-    zfadn({0, 2}) = 1;
-    zfadn({1, 3}) = -1;
-    znaupf({0, 1}) = 1;
-    znaupf({2, 3}) = -1;
-    zadagup({1, 0}) = 1;
-    zadagup({3, 2}) = 1;
-    znadn({0, 2}) = -1;
-    znadn({1, 3}) = -1;
-    zfadagdn({2, 0}) = -1;
-    zfadagdn({3, 1}) = 1;
-    ::testing::TestEventListeners &listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
-      delete listeners.Release(listeners.default_result_printer());
-    }
-  }
-};
 
 TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   auto dmpo_gen = MPOGenerator<QLTEN_Double, U1U1QN>(dsite_vec, qn0);
@@ -993,8 +698,8 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   auto qn0 = U1U1QN({QNCard("Nup", U1QNVal(0)), QNCard("Ndn", U1QNVal(0))});
   std::vector<size_t> stat_labs(N);
   for (size_t i = 0; i < N; ++i) { stat_labs[i] = (i % 2 == 0 ? 1 : 2); }
-  DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(dmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -1002,7 +707,7 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   RunTestMPIVMPSCase(
       dmps, dmpo, sweep_params,
       -2.828427124746, 1.0E-10,
-      world
+      comm
   );
 
   // Complex Hamiltonian
@@ -1054,8 +759,8 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
     }
   }
   auto zmpo = zmpo_gen.Gen();
-  DirectStateInitMps(zmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(zmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     zmps.Dump(sweep_params.mps_path, true);
@@ -1063,91 +768,9 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
   RunTestMPIVMPSCase(
       zmps, zmpo, sweep_params,
       -2.828427124746, 1.0E-10,
-      world
+      comm
   );
 }
-
-// Test non-uniform local Hilbert spaces system.
-// Kondo insulator, ref 10.1103/PhysRevB.97.245119,
-struct TestKondoInsulatorSystem : public testing::Test {
-  size_t Nx = 4;
-  size_t N = 2 * Nx;
-  double t = 0.25;
-  double Jk = 1.0;
-  double Jz = 0.5;
-
-  U1QN qn0 = U1QN({QNCard("Sz", U1QNVal(0))});
-  IndexT pb_outE = IndexT(
-      {QNSctT(U1QN({QNCard("Sz", U1QNVal(0))}), 4)},
-      TenIndexDirType::OUT
-  );    // extended electron
-  IndexT pb_outL = IndexT(
-      {QNSctT(U1QN({QNCard("Sz", U1QNVal(0))}), 2)},
-      TenIndexDirType::OUT
-  );    // localized electron
-  IndexT pb_inE = InverseIndex(pb_outE);
-  IndexT pb_inL = InverseIndex(pb_outL);
-
-  DQLTensor sz = DQLTensor({pb_inE, pb_outE});
-  DQLTensor sp = DQLTensor({pb_inE, pb_outE});
-  DQLTensor sm = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bupcF = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bupaF = DQLTensor({pb_inE, pb_outE});
-  DQLTensor Fbdnc = DQLTensor({pb_inE, pb_outE});
-  DQLTensor Fbdna = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bupc = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bupa = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bdnc = DQLTensor({pb_inE, pb_outE});
-  DQLTensor bdna = DQLTensor({pb_inE, pb_outE});
-
-  DQLTensor Sz = DQLTensor({pb_inL, pb_outL});
-  DQLTensor Sp = DQLTensor({pb_inL, pb_outL});
-  DQLTensor Sm = DQLTensor({pb_inL, pb_outL});
-
-  std::vector<IndexT> pb_set = std::vector<IndexT>(N);
-
-  mpi::communicator world;
-
-  void SetUp(void) {
-    ::testing::TestEventListeners &listeners =
-        ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
-      delete listeners.Release(listeners.default_result_printer());
-    }
-
-    sz({0, 0}) = 0.5;
-    sz({1, 1}) = -0.5;
-    sp({0, 1}) = 1.0;
-    sm({1, 0}) = 1.0;
-    bupcF({2, 1}) = -1;
-    bupcF({0, 3}) = 1;
-    Fbdnc({2, 0}) = 1;
-    Fbdnc({1, 3}) = -1;
-    bupaF({1, 2}) = 1;
-    bupaF({3, 0}) = -1;
-    Fbdna({0, 2}) = -1;
-    Fbdna({3, 1}) = 1;
-
-    bupc({2, 1}) = 1;
-    bupc({0, 3}) = 1;
-    bdnc({2, 0}) = 1;
-    bdnc({1, 3}) = 1;
-    bupa({1, 2}) = 1;
-    bupa({3, 0}) = 1;
-    bdna({0, 2}) = 1;
-    bdna({3, 1}) = 1;
-
-    Sz({0, 0}) = 0.5;
-    Sz({1, 1}) = -0.5;
-    Sp({0, 1}) = 1.0;
-    Sm({1, 0}) = 1.0;
-
-    for (size_t i = 0; i < N; ++i) {
-      if (i % 2 == 0) pb_set[i] = pb_outE;   // even site is extended electron
-      if (i % 2 == 1) pb_set[i] = pb_outL;   // odd site is localized electron
-    }
-  }
-};
 
 TEST_F(TestKondoInsulatorSystem, doublechain) {
   auto dsite_vec = DSiteVec(pb_set);
@@ -1175,8 +798,8 @@ TEST_F(TestKondoInsulatorSystem, doublechain) {
 
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
-  DirectStateInitMps(dmps, stat_labs);
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
+    DirectStateInitMps(dmps, stat_labs);
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
     dmps.Dump(sweep_params.mps_path, true);
@@ -1185,10 +808,18 @@ TEST_F(TestKondoInsulatorSystem, doublechain) {
       dmps, dmpo,
       sweep_params,
       -3.180025784229132, 1.0E-10,
-      world
+      comm
   );
-  if (world.rank() == kMasterRank) {
+  if (rank == kMPIMasterRank) {
     RemoveFolder(sweep_params.mps_path);
     RemoveFolder(sweep_params.temp_path);
   }
+}
+
+int main(int argc, char *argv[]) {
+  MPI_Init(nullptr, nullptr);
+  ::testing::InitGoogleTest(&argc, argv);
+  int test_err = RUN_ALL_TESTS();
+  MPI_Finalize();
+  return test_err;
 }

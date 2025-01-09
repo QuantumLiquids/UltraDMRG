@@ -15,20 +15,15 @@
 #define QLMPS_ALGO_MPI_ENV_TENSOR_UPDATE_SLAVE_H
 
 #include "qlten/qlten.h"
-#include "boost/mpi.hpp"
 #include "mps_algo_order.h"
 
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 /** Growing left environment tensors, slave function
  *
- * @tparam TenElemT
- * @tparam QNT
  * @param lenv old left environment tensor
  * @param mpo the one mpo tensor been using in this step of the update
- * @param world
  *
  * Mps tensor will be received from master side.
  * The results will be gathered at master.
@@ -37,14 +32,14 @@ template<typename TenElemT, typename QNT>
 inline void SlaveGrowLeftEnvironment(
     const QLTensor<TenElemT, QNT> &lenv,
     const QLTensor<TenElemT, QNT> &mpo,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   TenT mps;
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_mps_timer("grow_env_broadcast_mps_recv");
 #endif
-  RecvBroadCastQLTensor(world, mps, kMasterRank);
+  mps.MPI_Bcast(kMPIMasterRank, comm);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_mps_timer.PrintElapsed();
 #endif
@@ -53,20 +48,21 @@ inline void SlaveGrowLeftEnvironment(
   const size_t task_size = splited_index.GetQNSctNum();
   TenT mps_dag = Dag(mps);
   size_t task_count = 0;
-  const size_t slave_id = world.rank();//number from 1
-  if (slave_id > task_size) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  if (rank > task_size) {
 #ifdef QLMPS_MPI_TIMING_MODE
     std::cout << "Slave has done task_count = " << task_count << std::endl;
 #endif
     return;
   }
 #ifdef QLMPS_MPI_TIMING_MODE
-  Timer salve_communication_timer(" slave " + std::to_string(slave_id) + "'s communication");
+  Timer salve_communication_timer(" slave " + std::to_string(rank) + "'s communication");
   salve_communication_timer.Suspend();
-  Timer slave_work_timer(" slave " + std::to_string(slave_id) + "'s work");
+  Timer slave_work_timer(" slave " + std::to_string(rank) + "'s work");
 #endif
   //first task
-  size_t task = slave_id - 1;
+  size_t task = rank - 1;
   TenT env_times_mps;
   TenT temp, res;
   //First contract
@@ -89,8 +85,8 @@ inline void SlaveGrowLeftEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
   salve_communication_timer.Restart();
 #endif
-  bsdt.MPISend(world, kMasterRank, task);//tag = task
-  world.recv(kMasterRank, 2 * slave_id, task);//tag = 2*slave_id
+  bsdt.MPI_Send(comm, kMPIMasterRank, task);//tag = task
+  hp_numeric::MPI_Recv(task, kMPIMasterRank, TaskTag(rank), comm);
 #ifdef QLMPS_MPI_TIMING_MODE
   salve_communication_timer.Suspend();
 #endif
@@ -106,8 +102,8 @@ inline void SlaveGrowLeftEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
     salve_communication_timer.Restart();
 #endif
-    bsdt.MPISend(world, kMasterRank, task);//tag = task
-    world.recv(kMasterRank, 2 * slave_id, task);
+    bsdt.MPI_Send(comm, kMPIMasterRank, task);//tag = task
+    hp_numeric::MPI_Recv(task, kMPIMasterRank, TaskTag(rank), comm);
 #ifdef QLMPS_MPI_TIMING_MODE
     salve_communication_timer.Suspend();
 #endif
@@ -115,7 +111,7 @@ inline void SlaveGrowLeftEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
   slave_work_timer.PrintElapsed();
   salve_communication_timer.PrintElapsed();
-  std::cout << "Slave " << slave_id << " has done task_count = " << task_count << std::endl;
+  std::cout << "Slave " << rank << " has done task_count = " << task_count << std::endl;
 #endif
 }
 
@@ -125,14 +121,14 @@ template<typename TenElemT, typename QNT>
 inline void SlaveGrowRightEnvironment(
     const QLTensor<TenElemT, QNT> &renv,
     const QLTensor<TenElemT, QNT> &mpo,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   TenT mps;
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_mps_timer("grow_env_broadcast_mps_recv");
 #endif
-  RecvBroadCastQLTensor(world, mps, kMasterRank);
+  mps.MPI_Bcast(kMPIMasterRank, comm);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_mps_timer.PrintElapsed();
 #endif
@@ -141,20 +137,22 @@ inline void SlaveGrowRightEnvironment(
   const size_t task_size = splited_index.GetQNSctNum();
   TenT mps_dag = Dag(mps);
   size_t task_count = 0;
-  const size_t slave_id = world.rank();//number from 1
-  if (slave_id > task_size) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Barrier(comm);
+  if (rank > task_size) {
 #ifdef QLMPS_MPI_TIMING_MODE
     std::cout << "Slave has done task_count = " << task_count << std::endl;
 #endif
     return;
   }
 #ifdef QLMPS_MPI_TIMING_MODE
-  Timer salve_communication_timer(" slave " + std::to_string(slave_id) + "'s communication");
+  Timer salve_communication_timer(" slave " + std::to_string(rank) + "'s communication");
   salve_communication_timer.Suspend();
-  Timer slave_work_timer(" slave " + std::to_string(slave_id) + "'s work");
+  Timer slave_work_timer(" slave " + std::to_string(rank) + "'s work");
 #endif
   //first task
-  size_t task = slave_id - 1;
+  size_t task = rank - 1;
   TenT env_times_mps;
   TenT temp, res;
   //First contract
@@ -176,8 +174,9 @@ inline void SlaveGrowRightEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
   salve_communication_timer.Restart();
 #endif
-  bsdt.MPISend(world, kMasterRank, task);//tag = task
-  world.recv(kMasterRank, 2 * slave_id, task);//tag = 2*slave_id
+//  res.Show();
+  bsdt.MPI_Send(comm, kMPIMasterRank, task);//tag = task
+  hp_numeric::MPI_Recv(task, kMPIMasterRank, TaskTag(rank), comm);
 #ifdef QLMPS_MPI_TIMING_MODE
   salve_communication_timer.Suspend();
 #endif
@@ -193,8 +192,8 @@ inline void SlaveGrowRightEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
     salve_communication_timer.Restart();
 #endif
-    bsdt.MPISend(world, kMasterRank, task);//tag = task
-    world.recv(kMasterRank, 2 * slave_id, task);
+    bsdt.MPI_Send(comm, kMPIMasterRank, task);//tag = task
+    hp_numeric::MPI_Recv(task, kMPIMasterRank, TaskTag(rank), comm);
 #ifdef QLMPS_MPI_TIMING_MODE
     salve_communication_timer.Suspend();
 #endif
@@ -202,27 +201,27 @@ inline void SlaveGrowRightEnvironment(
 #ifdef QLMPS_MPI_TIMING_MODE
   slave_work_timer.PrintElapsed();
   salve_communication_timer.PrintElapsed();
-  std::cout << "Slave " << slave_id << " has done task_count = " << task_count << std::endl;
+  std::cout << "Slave " << rank << " has done task_count = " << task_count << std::endl;
 #endif
 }
 
 ///< used in initially generate the environment tensors, because at that time slave has no env data.
 template<typename TenElemT, typename QNT>
-inline void SlaveGrowLeftEnvironmentInit(mpi::communicator &world) {
+inline void SlaveGrowLeftEnvironmentInit(const MPI_Comm &comm) {
   QLTensor<TenElemT, QNT> mpo;
   QLTensor<TenElemT, QNT> lenv;
-  RecvBroadCastQLTensor(world, mpo, kMasterRank);
-  RecvBroadCastQLTensor(world, lenv, kMasterRank);
-  SlaveGrowLeftEnvironment(lenv, mpo, world);
+  mpo.MPI_Bcast(kMPIMasterRank, comm);
+  lenv.MPI_Bcast(kMPIMasterRank, comm);
+  SlaveGrowLeftEnvironment(lenv, mpo, comm);
 }
 
 template<typename TenElemT, typename QNT>
-inline void SlaveGrowRightEnvironmentInit(mpi::communicator &world) {
+inline void SlaveGrowRightEnvironmentInit(const MPI_Comm &comm) {
   QLTensor<TenElemT, QNT> mpo;
   QLTensor<TenElemT, QNT> renv;
-  RecvBroadCastQLTensor(world, mpo, kMasterRank);
-  RecvBroadCastQLTensor(world, renv, kMasterRank);
-  SlaveGrowRightEnvironment(renv, mpo, world);
+  mpo.MPI_Bcast(kMPIMasterRank, comm);
+  renv.MPI_Bcast(kMPIMasterRank, comm);
+  SlaveGrowRightEnvironment(renv, mpo, comm);
 }
 }//qlmps
 #endif //QLMPS_ALGO_MPI_ENV_TENSOR_UPDATE_SLAVE_H

@@ -13,21 +13,19 @@
 */
 
 /**
- * For the note of mpi, we use //${number} to mark synchronous things 
+ * For the note of mpi, we use {number} to mark synchronous things
  */
 
 #ifndef QLMPS_ALGO_MPI_LANCZOS_SOLVER_MPI_H
 #define QLMPS_ALGO_MPI_LANCZOS_SOLVER_MPI_H
 
-#include <stdlib.h>                             // size_t
+#include <cstdlib>                             // size_t
 #include "qlmps/algorithm/lanczos_params.h"    // Lanczos Params
-#include "boost/mpi.hpp"                        // mpi::communicator
 #include "qlmps/algo_mpi/mps_algo_order.h"          // order
 #include "qlten/qlten.h"                        // QLTensor
 
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 //Forward deceleration
 template<typename ElemT, typename QNT>
@@ -35,7 +33,7 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
     const std::vector<QLTensor<ElemT, QNT> *> &,
     QLTensor<ElemT, QNT> *,
     QLTensor<ElemT, QNT> &,
-    mpi::communicator
+    const MPI_Comm &
 );
 
 /**
@@ -52,7 +50,7 @@ LanczosRes<TenT> MasterLanczosSolver(
     const std::vector<TenT *> &rpeff_ham,
     TenT *pinit_state,
     const LanczosParams &params,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   // Take care that init_state will be destroyed after call the solver
   size_t eff_ham_eff_dim = pinit_state->size();
@@ -61,8 +59,8 @@ LanczosRes<TenT> MasterLanczosSolver(
 #ifdef QLMPS_TIMING_MODE
   Timer broadcast_eff_ham_timer("broadcast_eff_ham_send");
 #endif
-  SendBroadCastQLTensor(world, (*rpeff_ham[0]), kMasterRank);
-  SendBroadCastQLTensor(world, (*rpeff_ham[eff_ham_size-1]), kMasterRank);
+  MPI_Bcast((*rpeff_ham[0]), kMPIMasterRank, comm);
+  MPI_Bcast((*rpeff_ham[eff_ham_size - 1]), kMPIMasterRank, comm);
 
 #ifdef QLMPS_TIMING_MODE
   broadcast_eff_ham_timer.PrintElapsed();
@@ -92,7 +90,7 @@ LanczosRes<TenT> MasterLanczosSolver(
       rpeff_ham,
       bases[0],
       *last_mat_mul_vec_res,
-      world
+      comm
   );
 
 #ifdef QLMPS_TIMING_MODE
@@ -139,7 +137,7 @@ LanczosRes<TenT> MasterLanczosSolver(
         lancz_res.gs_eng = energy0;
         lancz_res.gs_vec = new TenT(*bases[0]);
         LanczosFree(eigvec, bases, last_mat_mul_vec_res);
-        MasterBroadcastOrder(lanczos_finish, world);
+        MasterBroadcastOrder(lanczos_finish, kMPIMasterRank, comm);
 #ifdef QLMPS_TIMING_MODE
         lancozs_post_precessing.PrintElapsed();
         lancozs_after_send_ham.PrintElapsed();
@@ -166,7 +164,7 @@ LanczosRes<TenT> MasterLanczosSolver(
         lancz_res.gs_eng = energy0;
         lancz_res.gs_vec = gs_vec;
         LanczosFree(eigvec, bases, last_mat_mul_vec_res);
-        MasterBroadcastOrder(lanczos_finish, world);
+        MasterBroadcastOrder(lanczos_finish, kMPIMasterRank, comm);
 #ifdef QLMPS_TIMING_MODE
         lancozs_post_precessing.PrintElapsed();
         lancozs_after_send_ham.PrintElapsed();
@@ -181,13 +179,13 @@ LanczosRes<TenT> MasterLanczosSolver(
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.ClearAndRestart();
 #endif
-    MasterBroadcastOrder(lanczos_mat_vec_dynamic, world);
+    MasterBroadcastOrder(lanczos_mat_vec_dynamic, kMPIMasterRank, comm);
     last_mat_mul_vec_res = new TenT();
     a[m] = master_two_site_eff_ham_mul_state(
         rpeff_ham,
         bases[m],
         *last_mat_mul_vec_res,
-        world
+        comm
     );
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.PrintElapsed();
@@ -225,7 +223,7 @@ LanczosRes<TenT> MasterLanczosSolver(
       lancz_res.gs_eng = energy0;
       lancz_res.gs_vec = gs_vec;
       LanczosFree(eigvec, bases, last_mat_mul_vec_res);
-      MasterBroadcastOrder(lanczos_finish, world);
+      MasterBroadcastOrder(lanczos_finish, kMPIMasterRank, comm);
 #ifdef QLMPS_TIMING_MODE
       lancozs_post_precessing.PrintElapsed();
       lancozs_after_send_ham.PrintElapsed();
@@ -249,7 +247,6 @@ LanczosRes<TenT> MasterLanczosSolver(
  * @param state     wave function
  * @param res       the result of effective hamiltonian multiple state,
  *                  as return, need to be a default tensor
- * @param world     boost::mpi::communicator
  * 
  * @return overlap of <res|(*state)>
  */
@@ -258,14 +255,16 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
     const std::vector<QLTensor<ElemT, QNT> *> &eff_ham,
     QLTensor<ElemT, QNT> *state,
     QLTensor<ElemT, QNT> &res,
-    mpi::communicator world
+    const MPI_Comm &comm
 ) {
   assert(res.IsDefault());
+  int mpi_size;
+  MPI_Comm_size(comm, &mpi_size);
   using TenT = QLTensor<ElemT, QNT>;
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_state_timer(" broadcast_state_send");
 #endif
-  SendBroadCastQLTensor(world, *state, kMasterRank);
+  MPI_Bcast(*state, kMPIMasterRank, comm);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_state_timer.PrintElapsed();
 #endif
@@ -276,7 +275,7 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
   const QNSectorVec<QNT> &split_qnscts = splited_index.GetQNScts();
   std::vector<TenT> res_list;
   res_list.reserve(task_size);
-  const size_t slave_size = world.size() - 1; //total number of slaves
+  const size_t slave_size = mpi_size - 1; //total number of slaves
   TenT res_shell = TenT(state->GetIndexes());
   std::vector<size_t> arraging_tasks(task_size);
   std::vector<size_t> task_difficuty(task_size);
@@ -307,9 +306,9 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
         res_list.push_back(res_shell);
       }
       auto &bsdt = res_list[i].GetBlkSparDataTen();
-      mpi::status recv_status = bsdt.MPIRecv(world, mpi::any_source, mpi::any_tag);
-      int slave_identifier = recv_status.source();
-      world.send(slave_identifier, 2 * slave_identifier, arraging_tasks[i]);
+      MPI_Status recv_status = bsdt.MPI_Recv(comm, MPI_ANY_SOURCE, MPI_ANY_TAG);
+      int worker_rank = recv_status.MPI_SOURCE;
+      hp_numeric::MPI_Send(arraging_tasks[i], worker_rank, 2 * worker_rank, comm);
     }
   } else if (task_size > slave_size) {
     std::sort(arraging_tasks.begin(),
@@ -320,26 +319,26 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
     for (size_t i = 0; i < task_size; i++) {
       res_list.push_back(res_shell);
       auto &bsdt = res_list[i].GetBlkSparDataTen();
-      mpi::status recv_status = bsdt.MPIRecv(world, mpi::any_source, mpi::any_tag);
-      int slave_identifier = recv_status.source();
-      world.send(slave_identifier, 2 * slave_identifier, arraging_tasks[i]);
+      auto status = bsdt.MPI_Recv(comm, MPI_ANY_SOURCE, MPI_ANY_TAG);
+      int worker_rank = status.MPI_SOURCE;
+      hp_numeric::MPI_Send(arraging_tasks[i], worker_rank, 2 * worker_rank, comm);
     }
   } else {
     for (size_t i = 0; i < task_size; i++) {
       res_list.push_back(res_shell);
       auto &bsdt = res_list[i].GetBlkSparDataTen();
-      mpi::status recv_status = bsdt.MPIRecv(world, mpi::any_source, mpi::any_tag);
-      int slave_identifier = recv_status.source();
-      world.send(slave_identifier, 2 * slave_identifier, arraging_tasks[i]);
+      auto recv_status = bsdt.MPI_Recv(comm, MPI_ANY_SOURCE, MPI_ANY_TAG);
+      int worker_rank = recv_status.MPI_SOURCE;
+      hp_numeric::MPI_Send(arraging_tasks[i], worker_rank, 2 * worker_rank, comm);
     }
   }
 
   QLTEN_Double overlap(0.0), overlap_sub;
   for (size_t i = 0; i < std::min(task_size, slave_size); i++) {
-    int slave_identifier = i + 1;
-    int all_final_signal = -1;
-    world.send(slave_identifier, 3 * slave_identifier + task_size, all_final_signal);
-    world.recv(slave_identifier, 4 * slave_identifier + task_size, overlap_sub);
+    int worker_rank = i + 1;
+    hp_numeric::MPI_Send(FinalSignal(task_size), worker_rank, 3 * worker_rank + task_size, comm);
+    MPI_Status status;
+    HANDLE_MPI_ERROR(::MPI_Recv(&overlap_sub, 1, MPI_DOUBLE, worker_rank, 4 * worker_rank + task_size, comm, &status));
     overlap += overlap_sub;
   }
 

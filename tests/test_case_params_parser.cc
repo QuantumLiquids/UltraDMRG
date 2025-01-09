@@ -5,10 +5,9 @@
 * 
 * Description: GraceQ/mps2 project. Unittests for simulation case parameters parser.
 */
-#include "qlmps/qlmps.h"
-#include "gtest/gtest.h"
 
-#include <string>
+#include "gtest/gtest.h"
+#include "qlmps/case_params_parser.h"
 
 using namespace qlmps;
 

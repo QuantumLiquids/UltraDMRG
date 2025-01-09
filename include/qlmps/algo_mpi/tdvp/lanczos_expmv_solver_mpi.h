@@ -12,7 +12,6 @@
 
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 //Forward deceleration
 template<typename ElemT, typename QNT>
@@ -20,13 +19,13 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
     const std::vector<QLTensor<ElemT, QNT> *> &,
     QLTensor<ElemT, QNT> *,
     QLTensor<ElemT, QNT> &,
-    mpi::communicator
+    const MPI_Comm &
 );
 
 template<typename ElemT, typename QNT>
 void slave_two_site_eff_ham_mul_state(
     const std::vector<QLTensor<ElemT, QNT> *> &,
-    mpi::communicator
+    const MPI_Comm
 );
 
 template<typename TenT>
@@ -35,15 +34,15 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
     TenT *pinit_state,
     const double step_length,
     const LanczosParams &params,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   const size_t eff_ham_eff_dim = pinit_state->size();
   const size_t eff_ham_size = pinit_state->Rank();
 #ifdef QLMPS_TIMING_MODE
   Timer broadcast_eff_ham_timer("broadcast_eff_ham_send");
 #endif
-  SendBroadCastQLTensor(world, (*rpeff_ham[0]), kMasterRank);
-  SendBroadCastQLTensor(world, (*rpeff_ham[eff_ham_size - 1]), kMasterRank);
+  MPI_Bcast((*rpeff_ham[0]), kMPIMasterRank, comm);
+  MPI_Bcast((*rpeff_ham[eff_ham_size - 1]), kMPIMasterRank, comm);
 
 #ifdef QLMPS_TIMING_MODE
   broadcast_eff_ham_timer.PrintElapsed();
@@ -58,7 +57,7 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
     energy_measu_ctrct_axes = {{0, 1, 2, 3}, {0, 1, 2, 3}};
   }
 
-  std::vector < TenT * > bases(params.max_iterations);
+  std::vector<TenT *> bases(params.max_iterations);
   std::vector<QLTEN_Double> a(params.max_iterations, 0.0);
   std::vector<QLTEN_Double> b(params.max_iterations, 0.0);
 
@@ -77,7 +76,7 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
       rpeff_ham,
       bases[0],
       *last_mat_mul_vec_res,
-      world
+      comm
   );
 #ifdef QLMPS_TIMING_MODE
   mat_vec_timer.PrintElapsed();
@@ -138,7 +137,7 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
 #ifdef QLMPS_TIMING_MODE
       Timer lancozs_post_precessing("lancz_post_processing");
 #endif
-      MasterBroadcastOrder(lanczos_finish, world);
+      MasterBroadcastOrder(lanczos_finish, kMPIMasterRank, comm);
       LanczosFree(combination_factor, bases, last_mat_mul_vec_res);
       delete[] last_combination_factor;
 #ifdef QLMPS_TIMING_MODE
@@ -153,13 +152,13 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.ClearAndRestart();
 #endif
-    MasterBroadcastOrder(lanczos_mat_vec_dynamic, world);
+    MasterBroadcastOrder(lanczos_mat_vec_dynamic, kMPIMasterRank, comm);
     last_mat_mul_vec_res = new TenT();
     a[m] = master_two_site_eff_ham_mul_state(
         rpeff_ham,
         bases[m],
         *last_mat_mul_vec_res,
-        world
+        comm
     );
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.PrintElapsed();
@@ -188,7 +187,7 @@ ExpmvRes<TenT> MasterLanczosExpmvSolver(
 #ifdef QLMPS_TIMING_MODE
       Timer lancozs_post_precessing("lancz_post_processing");
 #endif
-      MasterBroadcastOrder(lanczos_finish, world);
+      MasterBroadcastOrder(lanczos_finish, kMPIMasterRank, comm);
       LanczosFree(combination_factor, bases, last_mat_mul_vec_res);
       delete[] last_combination_factor;
 #ifdef QLMPS_TIMING_MODE

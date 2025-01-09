@@ -27,7 +27,7 @@ void ActOperatorOnMps(
     const QLTensor<TenElemT, QNT> &inst,
     const size_t site,
     FiniteMPS<TenElemT, QNT> &mps, //empty
-    const std::string &mps_path = kMpsPath
+    const std::string &mps_path
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   TenT *res = new TenT();
@@ -51,7 +51,26 @@ void ActOperatorOnMps(
     mps(i) = res;
     mps.DumpTen(i, GenMPSTenName(mps_path, i), true);
   }
+}
 
+template<typename TenElemT, typename QNT>
+void ActMpoOnMps(
+    const MPO<QLTensor<TenElemT, QNT>> &mpo,
+    FiniteMPS<TenElemT, QNT> &mps, //empty
+    const std::string &mps_path
+) {
+  using TenT = QLTensor<TenElemT, QNT>;
+  for (size_t i = 0; i < mps.size(); i++) {
+    TenT *res = new TenT();
+    mps.LoadTen(i, GenMPSTenName(mps_path, i));
+    Contract(mps(i), {1}, mpo(i), {1}, res);
+    res->FuseIndex(0, 2);
+    res->FuseIndex(1, 3);
+    res->Transpose({1, 2, 0});
+    delete mps(i);
+    mps(i) = res;
+    mps.DumpTen(i, GenMPSTenName(mps_path, i), true);
+  }
 }
 
 template<typename TenElemT, typename QNT, char dir>
@@ -104,12 +123,12 @@ void DumpMeasuRes(
 template<typename TenElemT, typename QNT>
 DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
     FiniteMPS<TenElemT, QNT> &mps, //initial state, empty, saved in disk
-    const MPO<QLTensor<TenElemT, QNT>> &mpo, //saved in memory,
+    const MPO<QLTensor<TenElemT, QNT>> &ham_mpo, //saved in memory,
     const TDVPEvolveParams<QNT> &sweep_params,
     const std::string measure_file_base_name
 ) {
   //TenElemT == QLTEN_Complex
-  assert(mps.size() == mpo.size());
+  assert(mps.size() == ham_mpo.size());
   const size_t site_0 = sweep_params.site_0;
   std::cout << "Please make sure the central of mps in disk is less than " << site_0 << "." << "\n";
 
@@ -121,10 +140,12 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
       mps.DumpTen(i, GenMPSTenName(sweep_params.initial_mps_path, i), true);
     }
   }
+  ActOperatorOnMps(sweep_params.local_op0, sweep_params.inst0, site_0, mps, sweep_params.mps_path);
+//  ActMpoOnMps(sweep_params.op0_mpo, mps, sweep_params.mps_path);
 
-  ActOperatorOnMps(sweep_params.op0, sweep_params.inst0, site_0, mps);
-  mps.LoadTen(sweep_params.site_0, GenMPSTenName(sweep_params.mps_path, sweep_params.site_0));
-  for (size_t i = site_0; i > 0; i--) {
+  size_t right_canonicalize_start_site = sweep_params.local_op_corr ? sweep_params.site_0 : (mps.size() - 1);
+  mps.LoadTen(right_canonicalize_start_site, GenMPSTenName(sweep_params.mps_path, sweep_params.site_0));
+  for (size_t i = right_canonicalize_start_site; i > 0; i--) {
     mps.LoadTen(i - 1, GenMPSTenName(sweep_params.mps_path, i - 1));
     mps.RightCanonicalizeTen(i);
     mps.DumpTen(i, GenMPSTenName(sweep_params.mps_path, i), true);
@@ -134,7 +155,7 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
   if (!IsPathExist(sweep_params.temp_path)) {
     CreatPath(sweep_params.temp_path);
   }
-  InitEnvs(mps, mpo, FiniteVMPSSweepParams(sweep_params), 1);
+  InitEnvs(mps, ham_mpo, FiniteVMPSSweepParams(sweep_params), 1);
 
   if (!IsPathExist(sweep_params.measure_temp_path)) {
     CreatPath(sweep_params.measure_temp_path);
@@ -143,7 +164,8 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
   std::cout << "\n";
 
   const size_t N = mps.size();
-  DynamicMeasuRes<TenElemT> measure_res(N * (sweep_params.step + 1));
+  const size_t measure_res_num = sweep_params.local_op_corr ? (N * (sweep_params.step + 1)) : (sweep_params.step + 1);
+  DynamicMeasuRes<TenElemT> measure_res(measure_res_num);
 
   double time = 0.0;
   // equal time correlation
@@ -158,7 +180,7 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
     std::cout << "step = " << step << "\n";
     Timer sweep_timer("sweep");
 
-    TwoSiteFiniteTDVPSweep(mps.GetSitesInfo(), mpo, sweep_params);
+    TwoSiteFiniteTDVPSweep(mps.GetSitesInfo(), ham_mpo, sweep_params);
     sweep_timer.PrintElapsed();
 
     Timer measure_timer("measure");
@@ -168,7 +190,8 @@ DynamicMeasuRes<TenElemT> TwoSiteFiniteTDVP(
     for (size_t i = 0; i < N; i++) {
       measure_res[(step + 1) * N + i].times = {0.0, time};
       measure_res[(step + 1) * N + i].sites = {site_0, i};
-      measure_res[(step + 1) * N + i].avg = correlation[i] * qlmps::complex_exp(QLTEN_Complex(0.0, sweep_params.e0) * time);
+      measure_res[(step + 1) * N + i].avg =
+          correlation[i] * qlmps::complex_exp(QLTEN_Complex(0.0, sweep_params.e0) * time);
     }
     measure_timer.PrintElapsed();
     std::cout << "\n";
@@ -508,8 +531,10 @@ void SingleSiteFiniteTDVPBackwardEvolution(
 }
 
 /*
- * <Psi_1 | Op | Psi_2>
- * State are read from disk
+ * <Psi_2 | Op | Psi_1>
+ * where |Psi_1> is the evolved state,
+ * and |Psi_2> is the initial state.
+ * The states are read from disk.
  *
  */
 template<typename TenElemT, typename QNT>
@@ -524,7 +549,7 @@ std::vector<TenElemT> CalPsi1OpPsi2(
   FiniteMPS<TenElemT, QNT> mps2(site_vec);
   const size_t N = mps1.size();
   using TenT = QLTensor<TenElemT, QNT>;
-  const TenT &Op = sweep_params.op1;
+  const TenT &Op = sweep_params.local_op1;
   const TenT &inst = sweep_params.inst1;
 
   std::vector<TenElemT> res(N);
@@ -532,9 +557,8 @@ std::vector<TenElemT> CalPsi1OpPsi2(
   mps1.LoadTen(N - 1, GenMPSTenName(mps1_path, N - 1));
   mps2.LoadTen(N - 1, GenMPSTenName(mps2_path, N - 1));
 
-  TenT right_boundary_tensor = TenT({
-                                        mps2.back().GetIndexes()[2],
-                                        InverseIndex(mps1.back().GetIndexes()[2])
+  TenT right_boundary_tensor = TenT({mps2.back().GetIndexes()[2],
+                                     InverseIndex(mps1.back().GetIndexes()[2])
                                     });
   right_boundary_tensor({0, 0}) = 1.0;
   std::string file = GenEnvTenName("r", 0, temp_path);

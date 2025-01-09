@@ -87,11 +87,6 @@ elseif (UNIX)
 endif ()
 
 
-find_package(Boost
-        1.74.0
-        REQUIRED
-        COMPONENTS serialization mpi)
-
 find_package(MPI REQUIRED)
 
 option(TEST_ACTUAL_COMBAT "test the actual examples of mps tensors" OFF)
@@ -124,7 +119,6 @@ if (QLMPS_USE_GPU)
                 PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${CUTENSOR_INCLUDE_DIR}
-                PRIVATE ${Boost_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR}
         )
         target_link_libraries(${TEST_NAME}
@@ -133,7 +127,7 @@ if (QLMPS_USE_GPU)
                 PRIVATE ${CUTENSOR_LIBRARY}
                 PRIVATE GTest::GTest GTest::Main
                 "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-        ) #remove MPI and boost dependence since GPU code not support MPI upto now
+        ) #remove MPI dependence since GPU code not support MPI upto now
 
 
         add_test(
@@ -159,13 +153,10 @@ else ()
                 PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
-                PRIVATE ${Boost_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
         target_link_libraries(${TEST_NAME}
                 GTest::GTest GTest::Main
                 ${hptt_LIBRARY}
-                Boost::serialization
-                Boost::mpi
                 ${MPI_CXX_LINK_FLAGS}
                 ${MPI_mpi_LIBRARY}
                 ${LINK_LIBS} "${LINK_LIB_FLAGS}")
@@ -193,13 +184,10 @@ else ()
                 PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
-                PRIVATE ${Boost_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
         target_link_libraries(${TEST_NAME}
                 GTest::GTest GTest::Main
                 ${hptt_LIBRARY}
-                Boost::serialization
-                Boost::mpi
                 ${MPI_CXX_LINK_FLAGS}
                 ${MPI_mpi_LIBRARY}
                 "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
@@ -229,13 +217,10 @@ else ()
                 PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
-                PRIVATE ${Boost_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
         target_link_libraries(${TEST_NAME}
                 GTest::GTest GTest::Main
                 ${hptt_LIBRARY}
-                Boost::serialization
-                Boost::mpi
                 ${MPI_CXX_LINK_FLAGS}
                 ${MPI_mpi_LIBRARY}
                 "${LINK_LIBS}" "${LINK_LIB_FLAGS}"

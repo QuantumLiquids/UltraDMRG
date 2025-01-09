@@ -21,22 +21,24 @@ inline QLTEN_Double FiniteDMRG(
     FiniteMPS<TenElemT, QNT> &mps,
     const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   QLTEN_Double e0(0.0);
-
-  if (world.size() == 1) {
+  int mpi_size, rank;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &mpi_size);
+  if (mpi_size == 1) {
     DMRGExecutor<TenElemT, QNT> dmrg_executor = DMRGExecutor(mat_repr_mpo, sweep_params);
     dmrg_executor.Execute();
     return dmrg_executor.GetEnergy();
   }
 
-  if (world.rank() == kMasterRank) {
-    DMRGMPIMasterExecutor<TenElemT, QNT> dmrg_executor = DMRGMPIMasterExecutor(mat_repr_mpo, sweep_params, world);
+  if (rank == kMPIMasterRank) {
+    DMRGMPIMasterExecutor<TenElemT, QNT> dmrg_executor = DMRGMPIMasterExecutor(mat_repr_mpo, sweep_params, comm);
     dmrg_executor.Execute();
     e0 = dmrg_executor.GetEnergy();
   } else {
-    DMRGMPISlaveExecutor<TenElemT, QNT> dmrg_executor = DMRGMPISlaveExecutor(mat_repr_mpo, world);
+    DMRGMPISlaveExecutor<TenElemT, QNT> dmrg_executor = DMRGMPISlaveExecutor(mat_repr_mpo, comm);
     dmrg_executor.Execute();
   }
   return e0;

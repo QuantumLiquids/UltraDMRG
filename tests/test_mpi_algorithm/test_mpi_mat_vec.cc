@@ -11,7 +11,6 @@
 #include "qlten/qlten.h"
 #include "qlten/utility/timer.h"
 #include "qlmps/algo_mpi/vmps/lanczos_solver_mpi_master.h"
-#include "boost/mpi.hpp"
 
 #include "gtest/gtest.h"
 
@@ -40,10 +39,10 @@ using ZQLTensor = QLTensor<QLTEN_Complex, U1U1QN>;
 
 // TEST(MPI_LANCZOS_TEST, MatrixMultiplyVector){
 int main(int argc, char *argv[]) {
-  namespace mpi = boost::mpi;
+
   using std::vector;
   mpi::environment env;
-  mpi::communicator world;
+  const MPI_Comm comm = MPI_COMM_WORLD
   size_t thread_num;
   if (argc == 1) {// no input paramter
     thread_num = 12;
@@ -54,7 +53,7 @@ int main(int argc, char *argv[]) {
   hp_numeric::SetTensorTransposeNumThreads(thread_num);
   DQLTensor lenv, renv, mpo1, mpo2, mps1, mps2;
   std::vector<DQLTensor *> eff_ham = {&lenv, &mpo1, &mpo2, &renv};
-  if (world.rank() == 0) {
+  if (comm.rank() == 0) {
     vector<DQLTensor *> load_ten_list = {&lenv, &renv, &mpo1, &mpo2, &mps1, &mps2};
     vector<std::string> file_name_list = {"lenv.qlten", "renv.qlten", "mpo_ten_l.qlten",
                                           "mpo_ten_r.qlten", "mps_ten_l.qlten", "mps_ten_r.qlten"};
@@ -71,15 +70,15 @@ int main(int argc, char *argv[]) {
     }
     load_tensor_timer.PrintElapsed();
     std::cout << "Master has loaded the tensors." << std::endl;
-    SendBroadCastQLTensor(world, lenv, kMasterRank);
-    SendBroadCastQLTensor(world, renv, kMasterRank);
-    SendBroadCastQLTensor(world, mpo1, kMasterRank);
-    SendBroadCastQLTensor(world, mpo2, kMasterRank);
+    SendBroadCastQLTensor(comm, lenv, kMPIMasterRank);
+    SendBroadCastQLTensor(comm, renv, kMPIMasterRank);
+    SendBroadCastQLTensor(comm, mpo1, kMPIMasterRank);
+    SendBroadCastQLTensor(comm, mpo2, kMPIMasterRank);
     DQLTensor *state = new DQLTensor();
     Contract(&mps1, &mps2, {{2}, {0}}, state);
     state->ConciseShow();
     Timer mpi_mat_vec_timer("mpi matrix multiply vector");
-    DQLTensor *mpi_res = master_two_site_eff_ham_mul_state(eff_ham, state, world);
+    DQLTensor *mpi_res = master_two_site_eff_ham_mul_state(eff_ham, state, comm);
     mpi_mat_vec_timer.PrintElapsed();
 
     Timer single_process_mat_vec_timer("single process matrix multiply vector");
@@ -91,12 +90,12 @@ int main(int argc, char *argv[]) {
     delete single_process_res;
     delete state;
   } else {
-    RecvBroadCastQLTensor(world, lenv, kMasterRank);
-    RecvBroadCastQLTensor(world, renv, kMasterRank);
-    RecvBroadCastQLTensor(world, mpo1, kMasterRank);
-    RecvBroadCastQLTensor(world, mpo2, kMasterRank);
+    RecvBroadCastQLTensor(comm, lenv, kMPIMasterRank);
+    RecvBroadCastQLTensor(comm, renv, kMPIMasterRank);
+    RecvBroadCastQLTensor(comm, mpo1, kMPIMasterRank);
+    RecvBroadCastQLTensor(comm, mpo2, kMPIMasterRank);
     std::cout << "Slave has received the eff_hams" << std::endl;
-    slave_two_site_eff_ham_mul_state(eff_ham, world);
+    slave_two_site_eff_ham_mul_state(eff_ham, comm);
   }
   return 0;
 }

@@ -16,11 +16,10 @@
 #define QLMPS_ALGO_MPI_MPS_ALGO_ORDER_H
 
 #include "qlten/qlten.h"
-#include "boost/mpi.hpp"
 
 namespace qlmps {
 using namespace qlten;
-const size_t kMasterRank = 0;
+using qlten::kMPIMasterRank;
 
 ///< variational mps orders send by master
 enum MPS_AlGO_ORDER {
@@ -41,17 +40,29 @@ enum MPS_AlGO_ORDER {
 };
 
 const size_t two_site_eff_ham_size = 4;
-namespace mpi = boost::mpi;
 
-inline void MasterBroadcastOrder(const MPS_AlGO_ORDER order,
-                                 mpi::communicator &world) {
-  mpi::broadcast(world, const_cast<MPS_AlGO_ORDER &>(order), kMasterRank);
+inline void BroadcastOrder(MPS_AlGO_ORDER algo_order,
+                           const int root,
+                           const MPI_Comm &comm) {
+  ::MPI_Bcast(&algo_order, 1, MPI_INT, root, comm);
 }
 
-inline MPS_AlGO_ORDER SlaveGetBroadcastOrder(mpi::communicator world) {
-  MPS_AlGO_ORDER order;
-  mpi::broadcast(world, order, kMasterRank);
-  return order;
+inline void MasterBroadcastOrder(MPS_AlGO_ORDER algo_order,
+                                 const int root,
+                                 const MPI_Comm &comm) {
+  ::MPI_Bcast(&algo_order, 1, MPI_INT, root, comm);
+}
+
+inline MPS_AlGO_ORDER SlaveGetBroadcastOrder(
+    const int root,
+    const MPI_Comm &comm) {
+  MPS_AlGO_ORDER algo_order;
+  MPI_Bcast(&algo_order, 1, MPI_INT, root, comm);
+  return algo_order;
+}
+
+inline size_t FinalSignal(size_t task_size) {
+  return task_size + 10086;
 }
 
 }//qlmps

@@ -9,11 +9,10 @@
 
 #define QLTEN_COUNT_FLOPS 1
 
-#include "qlmps/qlmps.h"
 #include "gtest/gtest.h"
 #include "qlten/qlten.h"
-#include <vector>
-#include <cstdlib>     // system
+#include "qlmps/algorithm/dmrg/dmrg.h"            //Test object
+#include "qlmps/one_dim_tn/mpo/mpogen/mpogen.h"   //MPO Generator
 
 using namespace qlmps;
 using namespace qlten;
@@ -253,7 +252,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
       std::make_pair(3, 5),
       std::make_pair(4, 5)
   };
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(1, {dsz, dsz}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsp, dsm}, {p.first, p.second});
     dmpo_gen.AddTerm(0.5, {dsm, dsp}, {p.first, p.second});
@@ -280,7 +279,7 @@ TEST_F(TestDMRGSpinSystem, 2DHeisenberg) {
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1QN>(zsite_vec_6, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(1, {zsz, zsz}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsp, zsm}, {p.first, p.second});
     zmpo_gen.AddTerm(0.5, {zsm, zsp}, {p.first, p.second});
@@ -598,7 +597,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
       std::make_pair(0, 2),
       std::make_pair(2, 3),
       std::make_pair(1, 3)};
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     dmpo_gen.AddTerm(-t, dcdagup, p.first, dcup, p.second, df);
     dmpo_gen.AddTerm(-t, dcdagdn, p.first, dcdn, p.second, df);
     dmpo_gen.AddTerm(-t, dcup, p.first, dcdagup, p.second, df);
@@ -630,7 +629,7 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
 
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1U1QN>(zsite_vec_4, qn0);
-  for (auto &p: nn_pairs) {
+  for (auto &p : nn_pairs) {
     zmpo_gen.AddTerm(-t, zcdagup, p.first, zcup, p.second, zf);
     zmpo_gen.AddTerm(-t, zcdagdn, p.first, zcdn, p.second, zf);
     zmpo_gen.AddTerm(-t, zcup, p.first, zcdagup, p.second, zf);

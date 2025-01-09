@@ -39,10 +39,10 @@ void WriteOperatorGroup(
 ) {
   for (size_t comp = 0; comp < op_gp.size(); comp++) {
     std::string file_name = GenOpFileName(dir, blk_len, comp, temp_path);
+    assert(!op_gp[comp].IsDefault());
     WriteQLTensorTOFile(op_gp[comp], file_name);
   }
 }
-
 
 ///< elements in op_gp are assumed as TenT(), with correct number of elements.
 template<typename TenT>

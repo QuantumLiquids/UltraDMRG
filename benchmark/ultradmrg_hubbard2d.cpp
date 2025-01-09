@@ -122,9 +122,9 @@ using namespace qlten;
 using namespace std;
 
 int main(int argc, char *argv[]) {
-  namespace mpi = boost::mpi;
+
   mpi::environment env;
-  mpi::communicator world;
+  const MPI_Comm& comm;
 
   size_t Lx = 16, Ly = 4;
   size_t N = Lx * Ly;
@@ -235,19 +235,19 @@ int main(int argc, char *argv[]) {
 
   sweep_params.Dmin = 10;
   sweep_params.Dmax = 10;
-  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, world);
+  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, comm);
   sweep_params.Dmin = 100;
   sweep_params.Dmax = 100;
-  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, world);
+  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, comm);
   sweep_params.Dmin = 1000;
   sweep_params.Dmax = 1000;
-  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, world);
+  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, comm);
   sweep_params.Dmin = 2000;
   sweep_params.Dmax = 2000;
-  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, world);
+  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, comm);
 
   Timer symbolic_mpo_dmrg_timer("DMRG");
-  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, world);
+  e0 = qlmps::FiniteDMRG(mps, mro, sweep_params, comm);
   symbolic_mpo_dmrg_timer.Suspend();
 
   endTime = clock();

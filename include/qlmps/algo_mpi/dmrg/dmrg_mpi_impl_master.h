@@ -23,7 +23,7 @@ class DMRGMPIMasterExecutor : public Executor {
   DMRGMPIMasterExecutor(
       const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
       const FiniteVMPSSweepParams &sweep_params,
-      boost::mpi::communicator &world
+      const MPI_Comm &comm
   );
 
   ~DMRGMPIMasterExecutor() = default;
@@ -84,15 +84,17 @@ class DMRGMPIMasterExecutor : public Executor {
   // H_eff = \sum_i block_site_ops_[i] direct product site_block_ops_[i]
   SuperBlockHamiltonianTerms<Tensor> hamiltonian_terms_;
 
-  boost::mpi::communicator &world_;
-  const size_t slave_num_;
+  const MPI_Comm &comm_;
+  int rank_;
+  int mpi_size_;
+  size_t worker_num_;
 };
 
 template<typename TenElemT, typename QNT>
 DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGMPIMasterExecutor(
     const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    boost::mpi::communicator &world
+    const MPI_Comm &comm
 ):
     sweep_params(sweep_params),
     N_(mat_repr_mpo.size()),
@@ -100,8 +102,10 @@ DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGMPIMasterExecutor(
     mat_repr_mpo_(mat_repr_mpo),
     lopg_vec_(N_), ropg_vec_(N_),
     dir_('r'),
-    world_(world),
-    slave_num_(world.size() - 1) {
+    comm_(comm) {
+  MPI_Comm_size(comm, &mpi_size_);
+  MPI_Comm_rank(comm, &rank_);
+  worker_num_ = mpi_size_ - 1;
   // Initial for MPS.
   IndexVec<QNT> index_vec(N_);
   for (size_t site = 0; site < N_; site++) {
@@ -117,11 +121,11 @@ template<typename TenElemT, typename QNT>
 void DMRGMPIMasterExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
   assert(mps_.size() == mat_repr_mpo_.size());
-  MasterBroadcastOrder(program_start, world_);
+  MasterBroadcastOrder(program_start, rank_, comm_);
 
-  for (size_t node = 1; node < world_.size(); node++) {
+  for (size_t node = 1; node < mpi_size_; node++) {
     size_t node_num;
-    world_.recv(node, 2 * node, node_num);
+    hp_numeric::MPI_Recv(node_num, node, 2 * node, comm_);
     if (node_num == node) {
       std::cout << "Node " << node << " received the program start order." << std::endl;
     } else {
@@ -142,7 +146,7 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::Execute() {
     std::cout << "\n";
   }
   mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
-  MasterBroadcastOrder(program_final, world_);
+  MasterBroadcastOrder(program_final, rank_, comm_);
   SetStatus(ExecutorStatus::FINISH);
 }
 
@@ -183,8 +187,8 @@ double DMRGMPIMasterExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Contract(&mps_[l_site_], &mps_[r_site_], init_state_ctrct_axes, init_state);
   //lanczos,
   Timer lancz_timer("two_site_dmrg_lancz");
-  MasterBroadcastOrder(lanczos, world_);
-  boost::mpi::broadcast(world_, l_site_, kMasterRank);
+  MasterBroadcastOrder(lanczos, rank_, comm_);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&l_site_, 1, MPI_UNSIGNED_LONG_LONG, rank_, comm_));
   auto lancz_res = LanczosSolver_(init_state);
   auto lancz_elapsed_time = lancz_timer.Elapsed();
 #ifdef QLMPS_TIMING_MODE
@@ -199,13 +203,13 @@ double DMRGMPIMasterExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   DTenT s;
   QLTEN_Double actual_trunc_err;
   size_t D;
-  MasterBroadcastOrder(svd, world_);
+  MasterBroadcastOrder(svd, rank_, comm_);
   MPISVDMaster(
       lancz_res.gs_vec,
       svd_ldims, Div(mps_[l_site_]),
       sweep_params.trunc_err, sweep_params.Dmin, sweep_params.Dmax,
       &u, &s, &vt, &actual_trunc_err, &D,
-      world_
+      comm_
   );
   delete lancz_res.gs_vec;
   auto ee = MeasureEE(s, D);
@@ -239,12 +243,12 @@ double DMRGMPIMasterExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 #endif
   switch (dir_) {
     case 'r': {
-      MasterBroadcastOrder(growing_left_env, world_);
+      MasterBroadcastOrder(growing_left_env, rank_, comm_);
       GrowLeftBlockOps_();
     }
       break;
     case 'l': {
-      MasterBroadcastOrder(growing_right_env, world_);
+      MasterBroadcastOrder(growing_right_env, rank_, comm_);
       GrowRightBlockOps_();
     }
       break;
@@ -303,7 +307,7 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::DumpRelatedTensSweep_() {
   lopg_vec_[l_site_].clear();
   ropg_vec_[(N_ - 1) - r_site_].clear();
   switch (dir_) {
-    case 'r':
+    case 'r':assert(!mps_[l_site_].IsDefault());
       mps_.DumpTen(
           l_site_,
           GenMPSTenName(sweep_params.mps_path, l_site_),
@@ -399,7 +403,7 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGInit_() {
   std::cout << "Temp path: \t" << sweep_params.temp_path << std::endl;
 
   std::cout << "=====> Technical Parameters <=====" << "\n";
-  std::cout << "The number of processors(including master): \t" << world_.size() << "\n";
+  std::cout << "The number of processors(including master): \t" << mpi_size_ << "\n";
 #ifndef  USE_GPU
   std::cout << "The number of threads per processor: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
 #endif
@@ -424,14 +428,14 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGInit_() {
     std::cout << "=====> Generating the block operators =====>" << std::endl;
     InitBlockOps_();
   } else {
-    MasterBroadcastOrder(init_grow_env_finish, world_);
+    MasterBroadcastOrder(init_grow_env_finish, rank_, comm_);
     std::cout << "The block operators exist." << std::endl;
   }
   UpdateBoundaryBlockOpsMaster(mps_, mat_repr_mpo_,
                                sweep_params.mps_path, sweep_params.temp_path,
                                left_boundary_,
                                right_boundary_,
-                               world_
+                               comm_
   );
 }
 
@@ -456,13 +460,13 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::InitBlockOps_(
 
   for (size_t i = 1; i <= N - (left_boundary_ + 2); ++i) {
     if (i > 1) { mps_.LoadTen(N - i, GenMPSTenName(mps_path, N - i)); }
-    MasterBroadcastOrder(init_grow_env_grow, world_);
+    MasterBroadcastOrder(init_grow_env_grow, rank_, comm_);
     auto rog_next = InitUpdateRightBlockOps_(rog, mps_[N - i], mat_repr_mpo_[N - i]);
     rog = std::move(rog_next);
     WriteOperatorGroup("r", i, rog, temp_path);
     mps_.dealloc(N - i);
   }
-  MasterBroadcastOrder(init_grow_env_finish, world_);
+  MasterBroadcastOrder(init_grow_env_finish, rank_, comm_);
 }
 
 template<typename TenElemT, typename QNT>
@@ -474,18 +478,18 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
   size_t res_op_num = mat_repr_mpo.rows;
   std::cout << "right block operator number : " << res_op_num << std::endl;
   size_t &task_num = res_op_num;
-  broadcast(world_, task_num, kMasterRank);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&task_num, 1, MPI_UNSIGNED_LONG_LONG, rank_, comm_));
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_mps_timer("grow_ops_broadcast_mps_send");
 #endif
-  SendBroadCastQLTensor(world_, mps_ten, kMasterRank);
+  const_cast<QLTensor<TenElemT, QNT> *>(&mps_ten)->MPI_Bcast(rank_, comm_);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_mps_timer.PrintElapsed();
 #endif
 
   RightBlockOperatorGroup<Tensor> rog_next(res_op_num);
 
-  if (task_num <= slave_num_) {
+  if (task_num <= worker_num_) {
     for (size_t i = 0; i < task_num; i++) {
       SiteBlockHamiltonianTermGroup<Tensor> site_block_terms;
       for (size_t k = 0; k < mat_repr_mpo.cols; k++) {
@@ -498,12 +502,12 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
       SendSiteBlockHamiltonianTermGroup_(site_block_terms, i + 1);
     }
     for (size_t i = 0; i < task_num; i++) {
-      auto recv_status = recv_qlten(world_, i + 1, i, rog_next[i]);
+      rog_next[i].MPI_Recv(i + 1, i, comm_);
     }
   } else {
-    for (size_t task_id = 0; task_id < slave_num_; task_id++) {
-      const size_t slave_id = task_id + 1;
-      world_.send(slave_id, slave_id, task_id);
+    for (size_t task_id = 0; task_id < worker_num_; task_id++) {
+      const size_t worker = task_id + 1;
+      hp_numeric::MPI_Send(task_id, worker, worker, comm_);
       SiteBlockHamiltonianTermGroup<Tensor> site_block_terms;
       for (size_t k = 0; k < mat_repr_mpo.cols; k++) {
         if (!mat_repr_mpo.IsNull(task_id, k)) {
@@ -512,15 +516,15 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
           site_block_terms.emplace_back(site_block_term);
         }
       }
-      SendSiteBlockHamiltonianTermGroup_(site_block_terms, slave_id);
+      SendSiteBlockHamiltonianTermGroup_(site_block_terms, worker);
     }
-    for (size_t task_id = slave_num_; task_id < task_num; task_id++) {
+    for (size_t task_id = worker_num_; task_id < task_num; task_id++) {
       Tensor res;
-      auto recv_status = recv_qlten(world_, mpi::any_source, mpi::any_tag, res);
-      size_t returned_task_id = recv_status.tag();
-      size_t slave_id = recv_status.source();
+      auto status = res.MPI_Recv(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+      size_t returned_task_id = status.MPI_TAG;
+      size_t worker = status.MPI_SOURCE;
       rog_next[returned_task_id] = std::move(res);
-      world_.send(slave_id, slave_id, task_id);
+      hp_numeric::MPI_Send(task_id, worker, worker, comm_);
       SiteBlockHamiltonianTermGroup<Tensor> site_block_terms;
       for (size_t k = 0; k < mat_repr_mpo.cols; k++) {
         if (!mat_repr_mpo.IsNull(task_id, k)) {
@@ -529,15 +533,13 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> DMRGMPIMasterExecutor<TenElemT,
           site_block_terms.emplace_back(site_block_term);
         }
       }
-      SendSiteBlockHamiltonianTermGroup_(site_block_terms, slave_id);
+      SendSiteBlockHamiltonianTermGroup_(site_block_terms, worker);
     }
-    for (size_t i = 0; i < slave_num_; i++) {
+    for (size_t i = 0; i < worker_num_; i++) {
       Tensor res;
-      auto recv_status = recv_qlten(world_, mpi::any_source, mpi::any_tag, res);
-      size_t returned_task_id = recv_status.tag();
-      size_t slave_id = recv_status.source();
-      rog_next[returned_task_id] = std::move(res);
-      world_.send(slave_id, slave_id, task_num + 10086);//10086 is chosen to make a mock.
+      auto status = res.MPI_Recv(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+      rog_next[status.MPI_TAG] = std::move(res);
+      hp_numeric::MPI_Send(FinalSignal(task_num), status.MPI_SOURCE, status.MPI_SOURCE, comm_);
     }
   }
 
@@ -549,10 +551,10 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::SendBlockSiteHamiltonianTermGroup_(
     const BlockSiteHamiltonianTermGroup<Tensor> &block_site_terms,
     size_t id) {
   const size_t num_terms = block_site_terms.size();
-  world_.send(id, 2 * id, num_terms);
+  hp_numeric::MPI_Send(num_terms, id, 2 * id, comm_);
   for (size_t i = 0; i < num_terms; i++) {
-    send_qlten(world_, id, i * id, *block_site_terms[i][0]);
-    send_qlten(world_, id, i * id, *block_site_terms[i][1]);
+    block_site_terms[i][0]->MPI_Send(id, i * id, comm_);
+    block_site_terms[i][1]->MPI_Send(id, i * id, comm_);
   }
 }
 
@@ -561,15 +563,13 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::SendSiteBlockHamiltonianTermGroup_(
     const SiteBlockHamiltonianTermGroup<Tensor> &site_block_hamiltonian_term_group,
     size_t id) {
   const size_t num_terms = site_block_hamiltonian_term_group.size();
-  world_.send(id, 2 * id, num_terms);
+  hp_numeric::MPI_Send(num_terms, id, 2 * id, comm_);
   for (size_t i = 0; i < num_terms; i++) {
 
     Tensor &h_site = *site_block_hamiltonian_term_group[i][0];
-    send_qlten(world_, id, i * id, h_site);
-//    world_.send(id, i * id, h_site); //NB: such code will introduce bug
-
+    h_site.MPI_Send(id, i * id, comm_);
     Tensor &h_env = *site_block_hamiltonian_term_group[i][1];
-    send_qlten(world_, id, i * id, h_env);
+    h_env.MPI_Send(id, i * id, comm_);
   }
 }
 
@@ -581,7 +581,7 @@ void UpdateBoundaryBlockOpsMaster(
     const std::string &temp_path,
     const size_t left_boundary,
     const size_t right_boundary,
-    boost::mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   auto N = mps.size();
@@ -636,31 +636,31 @@ void UpdateBoundaryBlockOpsMaster(
 
 template<typename TenElemT, typename QNT>
 void DMRGMPIMasterExecutor<TenElemT, QNT>::GrowLeftBlockOps_() {
-  SendBroadCastQLTensor(world_, mps_[l_site_], kMasterRank);
+  mps_[l_site_].MPI_Bcast(rank_, comm_);
   const size_t l_block_len = l_site_;
   const size_t num_ops = mat_repr_mpo_[l_site_].cols;
   lopg_vec_[l_block_len + 1] = std::vector<Tensor>(num_ops, Tensor());
 
   for (size_t i = 0; i < num_ops; i++) {
     size_t op_order;
-    auto recv_status = world_.recv(mpi::any_source, mpi::any_tag, op_order);
-    auto slave_id = recv_status.source();
-    recv_qlten(world_, slave_id, slave_id, lopg_vec_[l_block_len + 1][op_order]);
+    auto status = hp_numeric::MPI_Recv(op_order, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+    auto worker = status.MPI_SOURCE;
+    lopg_vec_[l_block_len + 1][op_order].MPI_Recv(worker, worker, comm_);
   }
 }
 
 template<typename TenElemT, typename QNT>
 void DMRGMPIMasterExecutor<TenElemT, QNT>::GrowRightBlockOps_() {
-  SendBroadCastQLTensor(world_, mps_[r_site_], kMasterRank);
+  mps_[r_site_].MPI_Bcast(rank_, comm_);
   const size_t r_block_len = N_ - 1 - r_site_;
   const size_t num_ops = mat_repr_mpo_[r_site_].rows;
   ropg_vec_[r_block_len + 1] = std::vector<Tensor>(num_ops, Tensor());
 
   for (size_t i = 0; i < num_ops; i++) {
     size_t op_order;
-    auto recv_status = world_.recv(mpi::any_source, mpi::any_tag, op_order);
-    auto slave_id = recv_status.source();
-    recv_qlten(world_, slave_id, slave_id, ropg_vec_[r_block_len + 1][op_order]);
+    auto status = hp_numeric::MPI_Recv(op_order, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_);
+    auto worker = status.MPI_SOURCE;
+    ropg_vec_[r_block_len + 1][op_order].MPI_Recv(worker, worker, comm_);
   }
 }
 

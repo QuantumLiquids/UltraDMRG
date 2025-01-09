@@ -35,8 +35,8 @@ struct TDVPEvolveParams {
       const std::string temp_path = kRuntimeTempPath,
       const std::string measure_temp_path = ".measure_temp"
   ) : tau(tau), step(step), site_0(site_0),
-      op0(op0), inst0(inst0),
-      op1(op1), inst1(inst1),
+      local_op0(op0), inst0(inst0),
+      local_op1(op1), inst1(inst1),
       e0(e0),
       Dmin(dmin), Dmax(dmax), trunc_err(trunc_err),
       lancz_params(lancz_params),
@@ -56,9 +56,11 @@ struct TDVPEvolveParams {
   double tau;
   size_t step;
   size_t site_0;
-  QLTensor<QLTEN_Complex, QNT> op0;
+
+  bool local_op_corr = true;
+  QLTensor<QLTEN_Complex, QNT> local_op0;
   QLTensor<QLTEN_Complex, QNT> inst0;
-  QLTensor<QLTEN_Complex, QNT> op1;
+  QLTensor<QLTEN_Complex, QNT> local_op1;
   QLTensor<QLTEN_Complex, QNT> inst1;
 
   double e0;  //energy value of ground state(initial state)

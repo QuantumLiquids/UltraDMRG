@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2023-05-11
 *
-* Description: GraceQ/mps2 project. Two-site update finite size DMRG with MPI Parallelization, slave side codes.
+* Description: QuantumLiquids/MPS project. Two-site update finite size DMRG with MPI Parallelization, slave side codes.
 */
 
 #ifndef QLMPS_ALGO_MPI_DMRG_DMRG_MPI_IMPL_SLAVE_H
@@ -17,7 +17,7 @@ class DMRGMPISlaveExecutor : public Executor {
   using Tensor = QLTensor<TenElemT, QNT>;
  public:
   DMRGMPISlaveExecutor(const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
-                       mpi::communicator &world
+                       const MPI_Comm &comm
   );
   ~DMRGMPISlaveExecutor() = default;
   void Execute() override;
@@ -38,8 +38,8 @@ class DMRGMPISlaveExecutor : public Executor {
   void WorkForGrowLeftBlockOps_();
   void WorkForGrowRightBlockOps_();
 
-  mpi::status RecvBlockSiteHamiltonianTermGroup_();
-  mpi::status RecvSiteBlockHamiltonianTermGroup_();
+  MPI_Status RecvBlockSiteHamiltonianTermGroup_();
+  MPI_Status RecvSiteBlockHamiltonianTermGroup_();
 
   size_t N_; //number of site
   const MatReprMPO<Tensor> mat_repr_mpo_;
@@ -55,27 +55,30 @@ class DMRGMPISlaveExecutor : public Executor {
   BlockSiteHamiltonianTermGroup<Tensor> block_site_hamiltonian_term_group_; // a temp datum
   SiteBlockHamiltonianTermGroup<Tensor> site_block_hamiltonian_term_group_; // a temp datum
 
-  const size_t id_;
-  mpi::communicator &world_;
+  int id_;
+  int master_rank_ = kMPIMasterRank;
+  int mpi_size_;
+  const MPI_Comm &comm_;
 };
 
 template<typename TenElemT, typename QNT>
 DMRGMPISlaveExecutor<TenElemT, QNT>::DMRGMPISlaveExecutor(
     const MatReprMPO<QLTensor<TenElemT, QNT>> &mat_repr_mpo,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ):N_(mat_repr_mpo.size()),
   mat_repr_mpo_(mat_repr_mpo), dir_('r'),
-  id_(world.rank()),
-  world_(world) {
+  comm_(comm) {
+  MPI_Comm_rank(comm, &id_);
+  MPI_Comm_size(comm, &mpi_size_);
   SetStatus(ExecutorStatus::INITED);
 }
 
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
-  auto order = SlaveGetBroadcastOrder(world_);
+  auto order = SlaveGetBroadcastOrder(master_rank_, comm_);
   if (order == program_start) {
-    world_.send(kMasterRank, 2 * id_, id_);
+    hp_numeric::MPI_Send(id_, master_rank_, 2 * id_, comm_);
   } else {
     std::cout << "unexpected " << std::endl;
     exit(1);
@@ -84,16 +87,16 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::Execute() {
   DMRGInit_();
 
   while (order != program_final) {
-    order = SlaveGetBroadcastOrder(world_);
+    order = SlaveGetBroadcastOrder(master_rank_, comm_);
     switch (order) {
       case lanczos: {
-        broadcast(world_, l_site_, kMasterRank);
+        HANDLE_MPI_ERROR(::MPI_Bcast(&l_site_, 1, MPI_UNSIGNED_LONG_LONG, master_rank_, comm_));
         r_site_ = l_site_ + 1;
         SlaveLanczosSolver_();
       }
         break;
       case svd: {
-        MPISVDSlave<TenElemT>(world_);
+        MPISVDSlave<TenElemT>(comm_);
       }
         break;
       case growing_left_env: {
@@ -116,29 +119,29 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::Execute() {
 
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::DMRGInit_() {
-  auto order = SlaveGetBroadcastOrder(world_);
+  auto order = SlaveGetBroadcastOrder(master_rank_, comm_);
   while (order != init_grow_env_finish) {
     assert(order == init_grow_env_grow);
     UpdateRightBlockOpsSlave_();
-    order = SlaveGetBroadcastOrder(world_);
+    order = SlaveGetBroadcastOrder(master_rank_, comm_);
   }
 }
 
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
   size_t task_num;
-  broadcast(world_, task_num, kMasterRank);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&task_num, 1, MPI_UNSIGNED_LONG_LONG, master_rank_, comm_));
   Tensor mps;
 #ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_mps_timer("grow_ops_broadcast_mps_recv");
 #endif
-  RecvBroadCastQLTensor(world_, mps, kMasterRank);
+  mps.MPI_Bcast(master_rank_, comm_);
 #ifdef QLMPS_MPI_TIMING_MODE
   broadcast_mps_timer.PrintElapsed();
 #endif
   Tensor mps_dag = Dag(mps);
 
-  if (task_num <= world_.size() - 1) {
+  if (task_num <= mpi_size_ - 1) {
     if (id_ <= task_num) {
       RecvSiteBlockHamiltonianTermGroup_();
       const size_t terms_num = site_block_hamiltonian_term_group_.size();
@@ -160,7 +163,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
       Tensor temp, res;
       Contract(&mps, &site_block_op, {{1, 2}, {0, 1}}, &temp);
       Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &res);
-      send_qlten(world_, kMasterRank, id_ - 1, res);
+      res.MPI_Send(master_rank_, id_ - 1, comm_);
       //delete site_block_hamiltonian_term_group_ data
       for (size_t i = 0; i < terms_num; i++) {
         delete site_block_hamiltonian_term_group_[i][0];
@@ -169,7 +172,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
     }
   } else {//task_num > slave number
     size_t task_id;
-    world_.recv(kMasterRank, id_, task_id);
+    hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
     while (task_id < task_num) {
       RecvSiteBlockHamiltonianTermGroup_();
       const size_t terms_num = site_block_hamiltonian_term_group_.size();
@@ -191,61 +194,61 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
       Tensor temp, res;
       Contract(&mps, &site_block_op, {{1, 2}, {0, 1}}, &temp);
       Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &res);
-      send_qlten(world_, kMasterRank, task_id, res);
+      res.MPI_Send(master_rank_, task_id, comm_);
       //delete site_block_hamiltonian_term_group_ data
       for (size_t i = 0; i < terms_num; i++) {
         delete site_block_hamiltonian_term_group_[i][0];
         delete site_block_hamiltonian_term_group_[i][1];
       }
-      world_.recv(kMasterRank, id_, task_id);
+      hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
     }
 
   }
 }
 
 template<typename TenElemT, typename QNT>
-mpi::status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvBlockSiteHamiltonianTermGroup_() {
+MPI_Status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvBlockSiteHamiltonianTermGroup_() {
   size_t num_terms;
-  world_.recv(kMasterRank, 2 * id_, num_terms);
+  hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * id_, comm_);
   block_site_hamiltonian_term_group_.resize(num_terms);
-  mpi::status recv_status;
+  MPI_Status status;
   for (size_t i = 0; i < num_terms; i++) {
     block_site_hamiltonian_term_group_[i][0] = new Tensor();
-    recv_qlten(world_, kMasterRank, i * id_, *block_site_hamiltonian_term_group_[i][0]);
+    status = block_site_hamiltonian_term_group_[i][0]->MPI_Recv(master_rank_, i * id_, comm_);
     block_site_hamiltonian_term_group_[i][1] = new Tensor();
-    recv_status = recv_qlten(world_, kMasterRank, i * id_, *block_site_hamiltonian_term_group_[i][1]);
+    status = block_site_hamiltonian_term_group_[i][1]->MPI_Recv(master_rank_, i * id_, comm_);
   }
-  return recv_status;
+  return status;
 }
 
 template<typename TenElemT, typename QNT>
-mpi::status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvSiteBlockHamiltonianTermGroup_() {
+MPI_Status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvSiteBlockHamiltonianTermGroup_() {
   size_t num_terms;
-  mpi::status recv_status = world_.recv(kMasterRank, 2 * id_, num_terms);
+  auto status = hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * id_, comm_);
   site_block_hamiltonian_term_group_.resize(num_terms);
 
   for (size_t i = 0; i < num_terms; i++) {
     site_block_hamiltonian_term_group_[i][0] = new Tensor();
     Tensor &h_site = *site_block_hamiltonian_term_group_[i][0];
-    recv_qlten(world_, kMasterRank, i * id_, h_site);
+    status = h_site.MPI_Recv(master_rank_, i * id_, comm_);
 
     site_block_hamiltonian_term_group_[i][1] = new Tensor();
     Tensor &h_env = *site_block_hamiltonian_term_group_[i][1];
-    recv_status = recv_qlten(world_, kMasterRank, i * id_, h_env);
+    status = h_env.MPI_Recv(master_rank_, i * id_, comm_);
   }
-  return recv_status;
+  return status;
 }
 
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::SlaveLanczosSolver_() {
-  auto order = SlaveGetBroadcastOrder(world_);
+  auto order = SlaveGetBroadcastOrder(master_rank_, comm_);
   assert(order == lanczos_mat_vec_dynamic);
   WorkForDynamicHamiltonianMultiplyState_();
-  order = SlaveGetBroadcastOrder(world_);
+  order = SlaveGetBroadcastOrder(master_rank_, comm_);
   while (order != lanczos_finish) {
     assert(order == lanczos_mat_vec_static);
     WorkForStaticHamiltonianMultiplyState_();
-    order = SlaveGetBroadcastOrder(world_);
+    order = SlaveGetBroadcastOrder(master_rank_, comm_);
   }
 }
 
@@ -269,9 +272,9 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForDynamicHamiltonianMultiplyState
 #endif
 
   size_t total_num_terms;
-  mpi::broadcast(world_, total_num_terms, kMasterRank);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&total_num_terms, 1, MPI_UNSIGNED_LONG_LONG, master_rank_, comm_));
   Tensor state;
-  RecvBroadCastQLTensor(world_, state, kMasterRank);
+  state.MPI_Bcast(master_rank_, comm_);
   block_site_ops_.clear();
   block_site_ops_.reserve(total_num_terms);
   site_block_ops_.clear();
@@ -280,13 +283,13 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForDynamicHamiltonianMultiplyState
   ops_num_table_.reserve(total_num_terms);
 
   Tensor multiplication_res;
-  send_qlten(world_, kMasterRank, total_num_terms + 10086, multiplication_res);
+  multiplication_res.MPI_Send(master_rank_, total_num_terms + 10086, comm_);
   //tag > total_num_terms means invalid data
   bool terminated = false;
 
   size_t task_id;
   do {
-    world_.recv(kMasterRank, id_, task_id);
+    hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
     if (task_id > total_num_terms) {
       terminated = true;
     } else {
@@ -387,7 +390,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForDynamicHamiltonianMultiplyState
       slave_hamil_multiply_state_delete_timer.Suspend();
       slave_hamil_multiply_state_computation_timer.Suspend();
 #endif
-      send_qlten(world_, kMasterRank, task_id, multiplication_res);
+      multiplication_res.MPI_Send(master_rank_, task_id, comm_);
     }
   } while (!terminated);
 #ifdef QLMPS_MPI_TIMING_MODE
@@ -411,7 +414,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_
   slave_hamil_multiply_state_computation_timer.Suspend();
 #endif
   Tensor state;
-  RecvBroadCastQLTensor(world_, state, kMasterRank);
+  state.MPI_Bcast(master_rank_, comm_);
 
   assert(num_terms == site_block_ops_.size());
   Tensor sub_sum;
@@ -449,7 +452,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_
     sub_sum = Tensor(state.GetIndexes());
   }
   auto &bsdt = sub_sum.GetBlkSparDataTen();
-  bsdt.MPISend(world_, kMasterRank, 10085);
+  bsdt.MPI_Send(comm_, master_rank_, 10085);
 
   Tensor temp_scalar_ten;
   QLTEN_Double sub_overlap = 0.0;
@@ -469,7 +472,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_
     slave_hamil_multiply_state_computation_timer.Suspend();
 #endif
   }
-  world_.send(kMasterRank, 10087, sub_overlap);
+  HANDLE_MPI_ERROR(::MPI_Send(&sub_overlap, 1, MPI_DOUBLE, master_rank_, 10087, comm_));
 #ifdef QLMPS_MPI_TIMING_MODE
   slave_hamil_multiply_state_computation_timer.PrintElapsed();
   slave_hamil_multiply_state_timer.PrintElapsed();
@@ -479,30 +482,30 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForGrowLeftBlockOps_() {
   Tensor mps;
-  RecvBroadCastQLTensor(world_, mps, kMasterRank);
+  mps.MPI_Bcast(master_rank_, comm_);
   const size_t local_num_ops = block_site_ops_.size();
   Tensor mps_dag = Dag(mps);
   for (size_t i = 0; i < local_num_ops; i++) {
     Tensor lop, temp;
     Contract(&block_site_ops_[i], &mps, {{2, 3}, {0, 1}}, &temp);
     Contract(&temp, &mps_dag, {{0, 1}, {0, 1}}, &lop);
-    world_.send(kMasterRank, id_, ops_num_table_[i]);
-    send_qlten(world_, kMasterRank, id_, lop);
+    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, id_, comm_);
+    lop.MPI_Send(master_rank_, id_, comm_);
   }
 }
 
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForGrowRightBlockOps_() {
   Tensor mps;
-  RecvBroadCastQLTensor(world_, mps, kMasterRank);
+  mps.MPI_Bcast(master_rank_, comm_);
   const size_t local_num_ops = site_block_ops_.size();
   Tensor mps_dag = Dag(mps);
   for (size_t i = 0; i < local_num_ops; i++) {
     Tensor rop, temp;
     Contract(&mps, &site_block_ops_[i], {{1, 2}, {0, 1}}, &temp);
     Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &rop);
-    world_.send(kMasterRank, id_, ops_num_table_[i]);
-    send_qlten(world_, kMasterRank, id_, rop);
+    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, id_, comm_);
+    rop.MPI_Send(master_rank_, id_, comm_);
   }
 }
 

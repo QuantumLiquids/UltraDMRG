@@ -12,19 +12,17 @@
 #define QLMPS_ALGO_MPI_VMPS_VMPS_MPI_INIT_SLAVE_H
 
 #include "qlten/qlten.h"
-#include "boost/mpi.hpp"
 #include "qlmps/algo_mpi/mps_algo_order.h"
-#include "qlmps/algo_mpi/env_tensor_update_slave.h"  //SlaveGrowRightEnvironmentInit
+#include "qlmps/algo_mpi/env_ten_update_slave.h"  //SlaveGrowRightEnvironmentInit
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 template<typename TenElemT, typename QNT>
-void InitEnvsSlave(mpi::communicator& world) {
-  auto order = SlaveGetBroadcastOrder(world);
+void InitEnvsSlave(const MPI_Comm &comm) {
+  auto order = SlaveGetBroadcastOrder(kMPIMasterRank, comm);
   while (order != init_grow_env_finish) {
     assert(order == init_grow_env_grow);
-    SlaveGrowRightEnvironmentInit<TenElemT, QNT>(world);
-    order = SlaveGetBroadcastOrder(world);
+    SlaveGrowRightEnvironmentInit<TenElemT, QNT>(comm);
+    order = SlaveGetBroadcastOrder(kMPIMasterRank, comm);
   }
   return;
 }

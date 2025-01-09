@@ -23,8 +23,9 @@
 #define QLMPS_ALGORITHM_VMPS_VMPS_INIT_H
 
 #include <map>
+#include <unistd.h>                                    //access()
 #include "qlten/qlten.h"
-#include "qlmps/one_dim_tn/mps_all.h"                          //FiniteMPS
+#include "qlmps/one_dim_tn/mps_all.h"                  //FiniteMPS
 #include "qlmps/algorithm/finite_vmps_sweep_params.h"  //FiniteVMPSSweepParams
 
 namespace qlmps {
@@ -146,8 +147,6 @@ std::pair<size_t, size_t> CheckAndUpdateBoundaryMPSTensors(
   //TODO: check if central file, add this function to the friend of FiniteMPS
   using TenT = QLTensor<TenElemT, QNT>;
 
-  using std::cout;
-  using std::endl;
   size_t N = mps.size();
   size_t left_boundary(0);  //the most left site which needs to update.
   size_t right_boundary(0); //the most right site which needs to update

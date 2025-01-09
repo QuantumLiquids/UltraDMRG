@@ -9,89 +9,88 @@
 
 #ifndef QLMPS_ALGO_MPI_VMPS_TWO_SITE_UPDATE_FINITE_VMPS_MPI_IMPL_SLAVE_H
 #define QLMPS_ALGO_MPI_VMPS_TWO_SITE_UPDATE_FINITE_VMPS_MPI_IMPL_SLAVE_H
-#include <stdlib.h>
 #include "qlten/qlten.h"
 #include "qlmps/algorithm/lanczos_params.h"                        //LanczosParams
 #include "qlmps/algorithm/finite_vmps_sweep_params.h"
-#include "boost/mpi.hpp"                                            //boost::mpi
 #include "qlmps/algo_mpi/mps_algo_order.h"                              //VMPSORDER
-#include "qlmps/algo_mpi/env_tensor_update_slave.h"                //MasterGrowLeftEnvironment, MasterGrowRightEnvironment
+#include "qlmps/algo_mpi/env_ten_update_slave.h"                //MasterGrowLeftEnvironment, MasterGrowRightEnvironment
 #include "qlmps/algo_mpi/vmps/vmps_mpi_init_slave.h"               //InitEnvsSlave
 #include "qlmps/algo_mpi/vmps/two_site_update_finite_vmps_mpi.h"   //TwoSiteMPIVMPSSweepParams
 #include "lanczos_solver_mpi_slave.h"
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 //forward declaration
 template<typename TenElemT, typename QNT>
 void SlaveTwoSiteFiniteVMPSRightMovingExpand(
     const std::vector<QLTensor<TenElemT, QNT> *> &,
-    boost::mpi::communicator &
+    const MPI_Comm &
 );
 
 template<typename TenElemT, typename QNT>
 void SlaveTwoSiteFiniteVMPSLeftMovingExpand(
     const std::vector<QLTensor<TenElemT, QNT> *> &,
-    boost::mpi::communicator &
+    const MPI_Comm &
 );
 
 template<typename TenElemT, typename QNT>
 void SlaveTwoSiteFiniteVMPS(
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
-
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  size_t node_num = rank;
   //global variables, and please careful the memory controlling for these variables.
   std::vector<TenT *> eff_ham(two_site_eff_ham_size);
 
   MPS_AlGO_ORDER order = program_start;
   while (order != program_final) {
-    order = SlaveGetBroadcastOrder(world);
+    order = SlaveGetBroadcastOrder(kMPIMasterRank, comm);
     switch (order) {
-      case program_start:world.send(kMasterRank, 2 * world.rank(), world.rank());
+      case program_start:hp_numeric::MPI_Send(node_num, kMPIMasterRank, 2 * rank, comm);
         break;
-      case init_grow_env:InitEnvsSlave<TenElemT, QNT>(world);
+      case init_grow_env:InitEnvsSlave<TenElemT, QNT>(comm);
         break;
       case lanczos: {
         size_t lsite_idx;
-        broadcast(world, lsite_idx, kMasterRank);
+        HANDLE_MPI_ERROR(::MPI_Bcast(&lsite_idx, 1, MPI_UNSIGNED_LONG_LONG, kMPIMasterRank, comm));
         size_t rsite_idx = lsite_idx + 1;
         eff_ham[0] = new TenT();
         eff_ham[1] = const_cast<TenT *>(&mpo[lsite_idx]);
         eff_ham[2] = const_cast<TenT *>(&mpo[rsite_idx]);
-        eff_ham[two_site_eff_ham_size-1] = new TenT();
-        SlaveLanczosSolver<TenT>(eff_ham, world);
+        eff_ham[two_site_eff_ham_size - 1] = new TenT();
+        SlaveLanczosSolver<TenT>(eff_ham, comm);
       }
         break;
       case svd: {
-        MPISVDSlave<TenElemT>(world);
+        MPISVDSlave<TenElemT>(comm);
       }
         break;
       case contract_for_right_moving_expansion: {//dir='r'
-        SlaveTwoSiteFiniteVMPSRightMovingExpand(eff_ham, world);
+        SlaveTwoSiteFiniteVMPSRightMovingExpand(eff_ham, comm);
       }
         break;
       case contract_for_left_moving_expansion: {//dir='l'
-        SlaveTwoSiteFiniteVMPSLeftMovingExpand(eff_ham, world);
+        SlaveTwoSiteFiniteVMPSLeftMovingExpand(eff_ham, comm);
       }
         break;
       case growing_left_env: {
-        delete eff_ham[two_site_eff_ham_size-1];
-        SlaveGrowLeftEnvironment(*eff_ham[0], *eff_ham[1], world);
+        delete eff_ham[two_site_eff_ham_size - 1];
+        SlaveGrowLeftEnvironment(*eff_ham[0], *eff_ham[1], comm);
         delete eff_ham[0];
       }
         break;
       case growing_right_env: {
         delete eff_ham[0];
-        SlaveGrowRightEnvironment(*eff_ham[3], *eff_ham[2], world);
-        delete eff_ham[two_site_eff_ham_size-1];
+        SlaveGrowRightEnvironment(*eff_ham[3], *eff_ham[2], comm);
+        delete eff_ham[two_site_eff_ham_size - 1];
       }
         break;
-      case program_final:std::cout << "Node" << world.rank() << " will stop." << std::endl;
+      case program_final:std::cout << "Node" << rank << " will stop." << std::endl;
         break;
-      default:std::cout << "Node " << world.rank() << " cannot understand the order " << order << std::endl;
+      default:std::cout << "Node " << rank << " cannot understand the order " << order << std::endl;
         break;
     }
   }

@@ -15,57 +15,46 @@
 #ifndef QLMPS_ALGO_MPI_VMPS_TWO_SITE_UPDATE_FINITE_VMPS_MPI_IMPLY_H
 #define QLMPS_ALGO_MPI_VMPS_TWO_SITE_UPDATE_FINITE_VMPS_MPI_IMPLY_H
 
-#include <stdlib.h>
 #include "qlten/qlten.h"
-#include "qlmps/algorithm/lanczos_params.h"                        //LanczosParams
+#include "qlmps/algorithm/lanczos_params.h"                         //LanczosParams
 #include "qlmps/algorithm/finite_vmps_sweep_params.h"
-#include "boost/mpi.hpp"                                            //boost::mpi
-#include "qlmps/algo_mpi/mps_algo_order.h"                              //VMPSORDER
-#include "qlmps/algo_mpi/env_tensor_update_master.h"               //MasterGrowLeftEnvironment, MasterGrowRightEnvironment
-#include "qlmps/algo_mpi/vmps/vmps_mpi_init_master.h"                     //MPI vmps initial
-#include "qlmps/algo_mpi/vmps/two_site_update_finite_vmps_mpi.h"   //TwoSiteMPIVMPSSweepParams
-#include "lanczos_solver_mpi_master.h"                     //MPI Lanczos solver
+#include "qlmps/algo_mpi/mps_algo_order.h"                          //VMPSORDER
+#include "qlmps/algo_mpi/env_ten_update_master.h"                   //MasterGrowLeftEnvironment, MasterGrowRightEnvironment
+#include "qlmps/algo_mpi/vmps/vmps_mpi_init_master.h"               //MPI vmps initial
+#include "qlmps/algo_mpi/vmps/two_site_update_finite_vmps_mpi.h"    //TwoSiteMPIVMPSSweepParams
+#include "lanczos_solver_mpi_master.h"                              //MPI Lanczos solver
 
 namespace qlmps {
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 //forward declaration
 template<typename TenElemT, typename QNT>
-void SlaveTwoSiteFiniteVMPS(mpi::communicator &world);
+void SlaveTwoSiteFiniteVMPS(const MPI_Comm &);
 
 template<typename TenElemT, typename QNT>
 inline QLTEN_Double TwoSiteFiniteVMPSWithNoise_(
     FiniteMPS<TenElemT, QNT> &mps,
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    mpi::communicator &world
+    const MPI_Comm &comm
 );
 
 /**
-Function to perform two-site update finite vMPS algorithm with MPI paralization.
+Function to perform two-site update finite vMPS algorithm with MPI parallelization.
   
   @example 
   Using the API in the following way:
-  in `main()`, codes like below are needed at start:
+  The starting point of `main()` should look like
   ```
-      namespace mpi = boost::mpi;
-      mpi::environment env(mpi::threading::multiple);
-      if(env.thread_level() < mpi::threading::multiple){
-        std::cout << "thread level of env is not right." << std::endl;
-        env.abort(-1);
-      }
-      mpi::communicator world;
+      MPI_Init(..)
+      MPI_Comm comm =     MPI_Comm_rank;
   ```
-  Note that multithreads environment are used to accelerate communications.
-  
-  When calling the function, just call it in all of the processors. No if
-  condition sentences are needed.
+
   ```
-    double e0 = TwoSiteFiniteVMPSWithNoise(mps, mpo, sweep_params, world);
+    double e0 = TwoSiteFiniteVMPSWithNoise(mps, mpo, sweep_params, comm);
   ```
-  However, except `world`, only variables in master processor
-  (rank 0 processor) are valid, inputs of other processor(s) can be 
+  However, except `comm`, variables are only valid in master processor,
+  inputs of other processor(s) can be
   arbitrary (Of course the types should be right). Outputs of slave(s)
   are all 0.0. 
 
@@ -79,19 +68,22 @@ inline QLTEN_Double TwoSiteFiniteVMPS(
     FiniteMPS<TenElemT, QNT> &mps,
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    mpi::communicator &world
+    const MPI_Comm &comm
 ) {
   QLTEN_Double e0(0.0);
-  if (world.size() == 1) {
+  int mpi_size, rank;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &mpi_size);
+  if (mpi_size == 1) {
     return TwoSiteFiniteVMPS(mps, mpo, sweep_params);
   }
   if (sweep_params.noise_valid) {
-    return TwoSiteFiniteVMPSWithNoise_(mps, mpo, sweep_params, world);
+    return TwoSiteFiniteVMPSWithNoise_(mps, mpo, sweep_params, comm);
   }
-  if (world.rank() == kMasterRank) {
-    e0 = MasterTwoSiteFiniteVMPS(mps, mpo, sweep_params, world);
+  if (rank == kMPIMasterRank) {
+    e0 = MasterTwoSiteFiniteVMPS(mps, mpo, sweep_params, comm);
   } else {
-    SlaveTwoSiteFiniteVMPS<TenElemT, QNT>(mpo, world);
+    SlaveTwoSiteFiniteVMPS<TenElemT, QNT>(mpo, comm);
   }
   return e0;
 }
@@ -101,15 +93,18 @@ QLTEN_Double MasterTwoSiteFiniteVMPS(
     FiniteMPS<TenElemT, QNT> &mps,
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params,
-    mpi::communicator world
+    const MPI_Comm &comm
 ) {
-  assert(world.rank() == kMasterRank); //only master can call this function
+  int rank, mpi_size;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &mpi_size);
+  assert(rank == kMPIMasterRank); //only master can call this function
   assert(mps.size() == mpo.size());
 
-  MasterBroadcastOrder(program_start, world);
-  for (size_t node = 1; node < world.size(); node++) {
-    int node_num;
-    world.recv(node, 2 * node, node_num);
+  MasterBroadcastOrder(program_start, kMPIMasterRank, comm);
+  for (size_t node = 1; node < mpi_size; node++) {
+    size_t node_num;
+    hp_numeric::MPI_Recv(node_num, node, 2 * node, comm);
     if (node_num == node) {
       std::cout << "Node " << node << " received the program start order." << std::endl;
     } else {
@@ -117,20 +112,20 @@ QLTEN_Double MasterTwoSiteFiniteVMPS(
       exit(1);
     }
   }
-  auto [left_boundary, right_boundary] = TwoSiteFiniteVMPSInit(mps, mpo, sweep_params, world);
+  auto [left_boundary, right_boundary] = TwoSiteFiniteVMPSInit(mps, mpo, sweep_params, comm);
   double e0(0.0);
   mps.LoadTen(left_boundary + 1, GenMPSTenName(sweep_params.mps_path, left_boundary + 1));
   for (size_t sweep = 1; sweep <= sweep_params.sweeps; ++sweep) {
     std::cout << "sweep " << sweep << std::endl;
     Timer sweep_timer("sweep");
     e0 = TwoSiteFiniteVMPSSweep(mps, mpo, sweep_params,
-                                left_boundary, right_boundary, world);
+                                left_boundary, right_boundary, comm);
 
     sweep_timer.PrintElapsed();
     std::cout << std::endl;
   }
   mps.DumpTen(left_boundary + 1, GenMPSTenName(sweep_params.mps_path, left_boundary + 1), true);
-  MasterBroadcastOrder(program_final, world);
+  MasterBroadcastOrder(program_final, kMPIMasterRank, comm);
   return e0;
 }
 
@@ -146,7 +141,7 @@ double TwoSiteFiniteVMPSSweep(
     const FiniteVMPSSweepParams &sweep_params,
     const size_t left_boundary,
     const size_t right_boundary,
-    mpi::communicator world
+    const MPI_Comm &comm
 ) {
   auto N = mps.size();
   using TenT = QLTensor<TenElemT, QNT>;
@@ -157,13 +152,13 @@ double TwoSiteFiniteVMPSSweep(
   for (size_t i = left_boundary; i <= right_boundary - 2; ++i) {
     // Load to-be-used tensors
     LoadRelatedTensOnTwoSiteAlgWhenRightMoving(mps, lenvs, renvs, i, left_boundary, sweep_params);
-    e0 = MasterTwoSiteFiniteVMPSUpdate(mps, lenvs, renvs, mpo, sweep_params, 'r', i, world);
+    e0 = MasterTwoSiteFiniteVMPSUpdate(mps, lenvs, renvs, mpo, sweep_params, 'r', i, comm);
     // Dump related tensor to HD and remove unused tensor from RAM
     DumpRelatedTensOnTwoSiteAlgWhenRightMoving(mps, lenvs, renvs, i, sweep_params);
   }
   for (size_t i = right_boundary; i >= left_boundary + 2; --i) {
     LoadRelatedTensOnTwoSiteAlgWhenLeftMoving(mps, lenvs, renvs, i, right_boundary, sweep_params);
-    e0 = MasterTwoSiteFiniteVMPSUpdate(mps, lenvs, renvs, mpo, sweep_params, 'l', i, world);
+    e0 = MasterTwoSiteFiniteVMPSUpdate(mps, lenvs, renvs, mpo, sweep_params, 'l', i, comm);
     DumpRelatedTensOnTwoSiteAlgWhenLeftMoving(mps, lenvs, renvs, i, sweep_params);
   }
   return e0;
@@ -178,7 +173,7 @@ double MasterTwoSiteFiniteVMPSUpdate(
     const FiniteVMPSSweepParams &sweep_params,
     const char dir,
     const size_t target_site,
-    mpi::communicator world
+    const MPI_Comm &comm
 ) {
   //master
   Timer update_timer("two_site_fvmps_update");
@@ -196,20 +191,17 @@ double MasterTwoSiteFiniteVMPSUpdate(
                            {0}};
   svd_ldims = 2;
   switch (dir) {
-    case 'r':
-      lsite_idx = target_site;
+    case 'r':lsite_idx = target_site;
       rsite_idx = target_site + 1;
       lenv_len = target_site;
       renv_len = N - (target_site + 2);
       break;
-    case 'l':
-      lsite_idx = target_site - 1;
+    case 'l':lsite_idx = target_site - 1;
       rsite_idx = target_site;
       lenv_len = target_site - 1;
       renv_len = N - target_site - 1;
       break;
-    default:
-      std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
+    default:std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
       exit(1);
   }
 
@@ -228,12 +220,12 @@ double MasterTwoSiteFiniteVMPSUpdate(
   initialize_timer.PrintElapsed();
 #endif
   Timer lancz_timer("two_site_fvmps_lancz");
-  MasterBroadcastOrder(lanczos, world);
-  broadcast(world, lsite_idx, kMasterRank);
+  MasterBroadcastOrder(lanczos, kMPIMasterRank, comm);
+  HANDLE_MPI_ERROR(::MPI_Bcast(&lsite_idx, 1, MPI_UNSIGNED_LONG_LONG, kMPIMasterRank, comm));
   auto lancz_res = MasterLanczosSolver(
       eff_ham, init_state,
       sweep_params.lancz_params,
-      world
+      comm
   );
 #ifdef QLMPS_TIMING_MODE
   auto lancz_elapsed_time = lancz_timer.PrintElapsed();
@@ -251,13 +243,13 @@ double MasterTwoSiteFiniteVMPSUpdate(
   DTenT s;
   QLTEN_Double actual_trunc_err;
   size_t D;
-  MasterBroadcastOrder(svd, world);
+  MasterBroadcastOrder(svd, kMPIMasterRank, comm);
   MPISVDMaster(
       lancz_res.gs_vec,
       svd_ldims, Div(mps[lsite_idx]),
       sweep_params.trunc_err, sweep_params.Dmin, sweep_params.Dmax,
       &u, &s, &vt, &actual_trunc_err, &D,
-      world
+      comm
   );
   delete lancz_res.gs_vec;
   auto ee = MeasureEE(s, D);
@@ -273,8 +265,7 @@ double MasterTwoSiteFiniteVMPSUpdate(
 
   TenT the_other_mps_ten;
   switch (dir) {
-    case 'r':
-      mps[lsite_idx] = std::move(u);
+    case 'r':mps[lsite_idx] = std::move(u);
       Contract(&s, &vt, {{1},
                          {0}}, &the_other_mps_ten);
       mps[rsite_idx] = std::move(the_other_mps_ten);
@@ -285,8 +276,7 @@ double MasterTwoSiteFiniteVMPSUpdate(
       mps[lsite_idx] = std::move(the_other_mps_ten);
       mps[rsite_idx] = std::move(vt);
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE
@@ -299,8 +289,8 @@ double MasterTwoSiteFiniteVMPSUpdate(
 #endif
   switch (dir) {
     case 'r': {
-      MasterBroadcastOrder(growing_left_env, world);
-      lenvs(lenv_len + 1) = MasterGrowLeftEnvironment(lenvs[lenv_len], mpo[target_site], mps[target_site], world);
+      MasterBroadcastOrder(growing_left_env, kMPIMasterRank, comm);
+      lenvs(lenv_len + 1) = MasterGrowLeftEnvironment(mpo[target_site], mps[target_site], comm);
       /*
       TenT temp1, temp2, lenv_ten;
       Contract(&lenvs[lenv_len], &mps[target_site], {{0}, {0}}, &temp1);
@@ -312,8 +302,8 @@ double MasterTwoSiteFiniteVMPSUpdate(
     }
       break;
     case 'l': {
-      MasterBroadcastOrder(growing_right_env, world);
-      renvs(renv_len + 1) = MasterGrowRightEnvironment(*eff_ham[3], mpo[target_site], mps[target_site], world);
+      MasterBroadcastOrder(growing_right_env, kMPIMasterRank, comm);
+      renvs(renv_len + 1) = MasterGrowRightEnvironment(mpo[target_site], mps[target_site], comm);
       /*
       TenT temp1, temp2, renv_ten;
       Contract(&mps[target_site], eff_ham[3], {{2}, {0}}, &temp1);
@@ -324,8 +314,7 @@ double MasterTwoSiteFiniteVMPSUpdate(
       */
     }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE

@@ -3,13 +3,13 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2021/11/2
 *
-* Description: GraceQ/mps2 project. Unittest for two site finite TDVP algorithm.
+* Description: QuantumLiquids/DMRG project. Unittest for two site finite TDVP algorithm.
 */
 
+#include "gtest/gtest.h"
 #include "qlten/qlten.h"
 #include "qlmps/qlmps.h"
-#include "../testing_utils.h"                                  //RemoveFolder
-#include "gtest/gtest.h"
+#include "../testing_utils.h"        //RemoveFolder
 
 using namespace qlmps;
 using namespace qlten;

@@ -10,11 +10,9 @@
 #include "qlmps/qlmps.h"
 #include "../testing_utils.h"                                  //RemoveFolder
 #include "gtest/gtest.h"
-#include "boost/mpi.hpp"
 
 using namespace qlmps;
 using namespace qlten;
-namespace mpi = boost::mpi;
 
 using U1QN = special_qn::U1QN;
 using U1U1QN = special_qn::U1U1QN;
@@ -63,7 +61,8 @@ struct TestTwoSiteAlgorithmSpinlessFermion : public testing::Test {
   ZQLTensor zf = ZQLTensor({pb_in, pb_out});
   ZMPS zmps = ZMPS(zsite_vec_6);
 
-  mpi::communicator world;
+  MPI_Comm comm = MPI_COMM_WORLD;
+  int rank;
   void SetUp(void) {
     did({0, 0}) = 1;
     did({1, 1}) = 1;
@@ -82,7 +81,8 @@ struct TestTwoSiteAlgorithmSpinlessFermion : public testing::Test {
 
     ::testing::TestEventListeners &listeners =
         ::testing::UnitTest::GetInstance()->listeners();
-    if (world.rank() != 0) {
+    MPI_Comm_rank(comm, &rank);
+    if (rank != 0) {
       delete listeners.Release(listeners.default_result_printer());
     }
   }
@@ -121,7 +121,7 @@ TEST_F(TestTwoSiteAlgorithmSpinlessFermion, 1DSpinlessFreeFermion) {
       LanczosParams(1.0E-8)
   );
   double e0(0.0);
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(vmps_sweep_params.mps_path);
     RemoveFolder(vmps_sweep_params.temp_path);
     std::vector<size_t> stat_labs;
@@ -132,7 +132,7 @@ TEST_F(TestTwoSiteAlgorithmSpinlessFermion, 1DSpinlessFreeFermion) {
     double benchmark_e0 = -3.4939592074349334893668128643185;
     EXPECT_NEAR(e0, benchmark_e0, 1e-13);
   }
-  mpi::broadcast(world, e0, 0);
+  ::MPI_Bcast(&e0, 1, MPI_DOUBLE, 0, comm);
 
   MPITDVPSweepParams<U1QN> tdvp_sweep_params = MPITDVPSweepParams<U1QN>(
       0.01, 30,
@@ -141,14 +141,14 @@ TEST_F(TestTwoSiteAlgorithmSpinlessFermion, 1DSpinlessFreeFermion) {
       10, 16, 1.0E-10,
       LanczosParams(1.0E-8)
   );
-  if (world.rank() == 0) {
+  if (rank == 0) {
     RemoveFolder(tdvp_sweep_params.initial_mps_path);
     RemoveFolder(tdvp_sweep_params.measure_temp_path);
   }
   auto dynamic_correlation =
-      TwoSiteFiniteTDVP(zmps, zmpo, tdvp_sweep_params, "spinless_fermion_single_particle_dynamic", world);
+      TwoSiteFiniteTDVP(zmps, zmpo, tdvp_sweep_params, "spinless_fermion_single_particle_dynamic", comm);
 
-  if (world.rank() == 0) {
+  if (rank == 0) {
     for (size_t i = 0; i < dynamic_correlation.size(); i++) {
       QLTEN_Complex correlation_val = dynamic_correlation[i].avg;
       double dtime = dynamic_correlation[i].times[1];
@@ -164,9 +164,11 @@ TEST_F(TestTwoSiteAlgorithmSpinlessFermion, 1DSpinlessFreeFermion) {
 }
 
 int main(int argc, char *argv[]) {
+  MPI_Init(nullptr, nullptr);
   ::testing::InitGoogleTest(&argc, argv);
-  boost::mpi::environment env;
-  return RUN_ALL_TESTS();
+  int test_err = RUN_ALL_TESTS();
+  MPI_Finalize();
+  return test_err;
 }
 
 
