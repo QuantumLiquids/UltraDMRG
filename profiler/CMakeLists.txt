@@ -40,12 +40,6 @@ elseif (UNIX)
     endif ()
 endif ()
 
-
-find_package(Boost
-        1.76.0
-        REQUIRED
-        COMPONENTS serialization mpi)
-
 find_package(MPI REQUIRED)
 
 option(TEST_ACTUAL_COMBAT "test the actual examples of mps tensors" OFF)
@@ -77,13 +71,10 @@ macro(add_unittest
             PRIVATE ${QLMPS_HEADER_PATH}
             PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
             PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
             PRIVATE ${MPI_CXX_HEADER_DIR})
     target_link_libraries(${TEST_NAME}
             GTest::GTest GTest::Main
             ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
             ${MPI_CXX_LINK_FLAGS}
             ${MPI_mpi_LIBRARY}
             ${LINK_LIBS} "${LINK_LIB_FLAGS}")
@@ -111,13 +102,10 @@ macro(add_mpi_unittest
             PRIVATE ${QLMPS_HEADER_PATH}
             PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
             PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
             PRIVATE ${MPI_CXX_HEADER_DIR})
     target_link_libraries(${TEST_NAME}
             GTest::GTest GTest::Main
             ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
             ${MPI_CXX_LINK_FLAGS}
             ${MPI_mpi_LIBRARY}
             "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
@@ -148,13 +136,10 @@ macro(add_profiler_case
             PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
             PRIVATE ${PROFILER_INCLUDE_DIR}
             PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${Boost_INCLUDE_DIR}
             PRIVATE ${MPI_CXX_HEADER_DIR})
     target_link_libraries(${TEST_NAME}
             ${LIBPROFILER_LIBRARY}
             ${hptt_LIBRARY}
-            Boost::serialization
-            Boost::mpi
             ${MPI_CXX_LINK_FLAGS}
             ${MPI_mpi_LIBRARY}
             "${LINK_LIBS}" "${LINK_LIB_FLAGS}"

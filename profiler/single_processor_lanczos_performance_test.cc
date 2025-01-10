@@ -117,7 +117,6 @@ int main(int argc, char *argv[]){
   vector<DGQTensor*> eff_ham = {&lenv, &mpo1, &mpo2, &renv};
   DGQTensor* state = new DGQTensor();
   hp_numeric::SetTensorManipulationTotalThreads(14);
-  hp_numeric::SetTensorTransposeNumThreads(14);
   Contract(&mps1, &mps2, {{2},{0}}, state);
 
   cout << "initial state:"; state->ConciseShow();
@@ -132,7 +131,6 @@ int main(int argc, char *argv[]){
     }
     std::string profiler_report_file = "single_process_lanczos_thread" + std::to_string(thread_nums[i]) + ".o";
     hp_numeric::SetTensorManipulationTotalThreads(thread_nums[i]);
-    hp_numeric::SetTensorTransposeNumThreads(thread_nums[i]);
     ProfilerStart( profiler_report_file.c_str() );
 
     #pragma omp parallel num_threads(hp_numeric::tensor_manipulation_num_threads) default(none)

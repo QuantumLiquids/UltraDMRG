@@ -122,9 +122,11 @@ using namespace qlten;
 using namespace std;
 
 int main(int argc, char *argv[]) {
-
-  mpi::environment env;
-  const MPI_Comm& comm;
+  MPI_Init(nullptr, nullptr);
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  int rank, mpi_size;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &mpi_size);
 
   size_t Lx = 16, Ly = 4;
   size_t N = Lx * Ly;
@@ -253,5 +255,6 @@ int main(int argc, char *argv[]) {
   endTime = clock();
   double cpu_time = (double) (endTime - startTime) / CLOCKS_PER_SEC;
   cout << "CPU Time : " << cpu_time << "s" << endl;
+  MPI_Finalize();
   return 0;
 }

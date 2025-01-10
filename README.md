@@ -2,26 +2,32 @@
 
 [![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 
-QuantumLiquids/UltraDMRG is a powerful and efficient library for performing large-scale,
-high-performance calculations using one-dimensional tensor network algorithms.
-It is specifically designed to tackle the complexities of simulating untamable
-two-dimensional strongly correlated electron systems.
-Our goal in creating this package is to lower the barriers
-associated with simulating strongly correlated electron systems,
-offering a user-friendly and accessible solution for researchers in this field.
+**UltraDMRG** is a powerful and efficient library for performing large-scale, 
+high-performance calculations using 1D tensor network algorithms. 
+It is specifically designed to address the complexities of simulating 
+two-dimensional strongly correlated electron systems, making previously 
+untamable problems more accessible. Our goal is to lower the barriers to 
+simulating strongly correlated systems. The package is header-only.
+
+___
 
 ## Features
 
 UltraDMRG offers the following key features:
 
 - [x] MPI/CUDA parallelization of Density Matrix Renormalization Group
-- [x] MPI/CUDA parallelization of MPS-based time-dependent variational principle algorithm
-- [x] Finite-temperature calculation
+- [x] MPI/CUDA parallelization of MPS-based time-dependent variational principle algorithms
+- [x] Finite-temperature calculations
+
+___
 
 ## To-Do List
 
 - [ ] infinite DMRG
 - [ ] DMRG low-energy excitation states
+- [ ] documentation
+
+___
 
 ## Performance Benchmark
 
@@ -48,49 +54,55 @@ We hope above setting can ensure an unbiased comparison.
 
 The codes used in the benchmark can be found in the directory `./benchmark`.
 The results of the performance benchmark,
-showcasing the sweep times, are presented in the accompanying figure.
+showcasing the time of single sweep, are presented in the accompanying figure.
+
+___
 
 ## Dependence
 
-Please note that the project requires the following dependencies
-to be installed in order to build and run successfully:
+UltraDMRG is header-only and requires no installation dependencies.
+However, building test cases or practical DMRG/TDVP programs based on this project requires:
 
-- C++17 Compiler or above
-- CMake (version 3.12 or higher)
-- Intel MKL or OpenBlas
-- MPI
-- CUDA compiler, cuBlas, cuSolver, cuTensor2
-- Boost::serialization, Boost::mpi (version 1.74 or higher)
-- [QuantumLiquids/TensorToolkit](https://github.com/QuantumLiquids/TensorToolkit)
-- GoogleTest (if testing is required)
+- **C++ Compiler:** C++17 or above
+- **Build System:** CMake (version 3.12 or higher)
+- **Math Libraries:** Intel MKL or OpenBLAS
+- **Parallelization:** MPI
+- **Tensor Operations:** [QuantumLiquids/TensorToolkit](https://github.com/QuantumLiquids/TensorToolkit)
+- **GPU Acceleration (optional):** CUDA compiler, cuBLAS, cuSolver, cuTensor2
+- **Testing (optional):** GoogleTest
+
+___
 
 ## Install
 
-Clone the repository into a desired directory and change into that location:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/QuantumLiquids/UltraDMRG.git
+   cd UltraDMRG
+   ```
 
-```
-git clone https://github.com/QuantumLiquids/UltraDMRG.git
-cd UltraDMRG
-```
+2. Build using CMake:
+   ```bash
+   mkdir build && cd build
+   cmake ..
+   make -j4 && make install
+   ```
 
-Using CMake:
+### Cmake build options:
 
-```
-mkdir build && cd build
-cmake .. 
-make -j4 && make install
+- Specify your preferred C++ compiler with `-DCMAKE_CXX_COMPILER`.
+- Use `-DCMAKE_INSTALL_PREFIX` to define the installation directory.
+- Build will only occur if `-DQLMPS_BUILD_UNITTEST=OFF` is set. Otherwise the header-only project will be installed
+  directly.
 
-```
-
-You may want to specify `CMAKE_CXX_COMPILER` as your favorite C++ compiler,
-and `CMAKE_INSTALL_PREFIX` as your install directory when you're calling `cmake`
+---
 
 ## Author
 
 Hao-Xin Wang
 
-For any inquiries or questions regarding the project,
-you can reach out to Hao-Xin via email at wanghaoxin1996@gmail.com.
+For inquiries, questions, or collaboration opportunities, please contact Hao-Xin via email:
+[wanghaoxin1996@gmail.com](mailto:wanghaoxin1996@gmail.com).
 
 ## Acknowledgments
 
@@ -98,7 +110,7 @@ UltraDMRG is built upon the foundation laid by the [GraceQ/MPS2](https://mps2.gr
 While initially inspired by GraceQ/mps2,
 UltraDMRG expands upon its capabilities by adding additional 1D tensor-network algorithms, dramatically improving
 performance, and most
-importantly, introducing support for MPI parallelization.
+importantly, introducing support for MPI/CUDA accelerations.
 We would like to express our gratitude to the following individuals for their contributions and guidance:
 
 - Rong-Yang Sun, the author of [GraceQ/mps2](https://mps2.gracequantum.org), for creating the initial framework that
@@ -106,7 +118,7 @@ We would like to express our gratitude to the following individuals for their co
 - Yi-Fan Jiang, providing me with extensive help and guidance in writing parallel DMRG
 - Hong Yao, my PhD advisor. His encouragement and continuous support
   of computational resources played crucial roles in the implementation of parallel DMRG.
-- Zhen-Cheng Gu, my postdoc advisor, one of the pioneers in the field of tensor network.
+- Zhen-Cheng Gu, my advisor, one of the pioneers in the field of tensor network.
 
 Their expertise and support have been invaluable in the development of UltraDMRG.
 
