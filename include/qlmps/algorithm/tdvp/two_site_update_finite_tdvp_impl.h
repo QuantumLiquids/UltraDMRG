@@ -42,7 +42,7 @@ void ActOperatorOnMps(
     return;
   }
 
-  for (int i = site - 1; i >= 0; i--) {
+  for (long i = site - 1; i >= 0; i--) {
     res = new TenT();
     mps.LoadTen(i, GenMPSTenName(mps_path, i));
     Contract(&inst, mps(i), {{0}, {1}}, res);

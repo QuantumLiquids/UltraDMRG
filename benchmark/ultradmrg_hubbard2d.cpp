@@ -2,8 +2,8 @@
 // Created by haoxinwang on 04/02/2024.
 //
 
-#include "qlmps/qlmps.h"
 #include "qlten/qlten.h"
+#include "qlmps/qlmps.h"
 
 using TenElemT = qlten::QLTEN_Double;
 
@@ -22,7 +22,7 @@ const IndexT pb_outF = IndexT({   //QNSctT( U1U1QN(N, Sz), degeneracy )
                               },
                               qlten::TenIndexDirType::OUT
 );  //Fermionic local Hilbert space
-const IndexT pb_inF = qlten::InverseIndex(pb_outF);
+const IndexT pb_inF = qlten::InverseIndex(pb_outF); // physical bond pointing out, fermion
 
 //Fermionic operators
 Tensor sz, sp, sm, id;
@@ -117,9 +117,8 @@ void OperatorInitial() {
   }
 }
 
-using namespace qlmps;
 using namespace qlten;
-using namespace std;
+using namespace qlmps;
 
 int main(int argc, char *argv[]) {
   MPI_Init(nullptr, nullptr);
@@ -130,12 +129,12 @@ int main(int argc, char *argv[]) {
 
   size_t Lx = 16, Ly = 4;
   size_t N = Lx * Ly;
-  cout << "The total number of sites: " << N << endl;
+  std::cout << "The total number of sites: " << N << std::endl;
   double t = 1, U = 8, t2 = 0;
-  cout << "Model parameter: "
-       << "t = " << t << ",\n"
-       << "t2= " << t2 << ",\n"
-       << "U = " << U << endl;
+  std::cout << "Model parameter: "
+            << "t = " << t << ",\n"
+            << "t2= " << t2 << ",\n"
+            << "U = " << U << std::endl;
   clock_t startTime, endTime;
   startTime = clock();
 
@@ -145,11 +144,11 @@ int main(int argc, char *argv[]) {
   OperatorInitial();
 
   const SiteVec<TenElemT, U1U1QN> sites = SiteVec<TenElemT, U1U1QN>(N, pb_outF);
-  qlmps::MPOGenerator<TenElemT, U1U1QN> mpo_gen(sites, qn0);
+  qlmps::MPOGenerator<TenElemT, U1U1QN> mpo_gen(sites);
 
   for (size_t i = 0; i < N; ++i) {
     mpo_gen.AddTerm(U, Uterm, i);
-    cout << "add site" << i << "Hubbard U term" << endl;
+    std::cout << "add site" << i << "Hubbard U term" << std::endl;
   }
 
   //horizontal interaction
@@ -159,7 +158,7 @@ int main(int argc, char *argv[]) {
     mpo_gen.AddTerm(-t, bdnc, site1, Fbdna, site2, f);
     mpo_gen.AddTerm(t, bupaF, site1, bupc, site2, f);
     mpo_gen.AddTerm(t, bdna, site1, Fbdnc, site2, f);
-    cout << "add site (" << site1 << "," << site2 << ")  hopping term" << endl;
+    std::cout << "add site (" << site1 << "," << site2 << ")  hopping term" << std::endl;
   }
   //vertical interaction
   for (size_t i = 0; i < N; ++i) {
@@ -170,14 +169,14 @@ int main(int argc, char *argv[]) {
       mpo_gen.AddTerm(-t, bdnc, site1, Fbdna, site2);
       mpo_gen.AddTerm(t, bupaF, site1, bupc, site2);
       mpo_gen.AddTerm(t, bdna, site1, Fbdnc, site2);
-      cout << "add site (" << site1 << "," << site2 << ")  hopping term" << endl;
+      std::cout << "add site (" << site1 << "," << site2 << ")  hopping term" << std::endl;
     } else if (Ly > 2) {
       size_t site1 = i - Ly + 1, site2 = i;
       mpo_gen.AddTerm(-t, bupcF, site1, bupa, site2, f);
       mpo_gen.AddTerm(-t, bdnc, site1, Fbdna, site2, f);
       mpo_gen.AddTerm(t, bupaF, site1, bupc, site2, f);
       mpo_gen.AddTerm(t, bdna, site1, Fbdnc, site2, f);
-      cout << "add site (" << site1 << "," << site2 << ")  hopping term" << endl;
+      std::cout << "add site (" << site1 << "," << site2 << ")  hopping term" << std::endl;
     }
   }
   //t2
@@ -190,7 +189,7 @@ int main(int argc, char *argv[]) {
     mpo_gen.AddTerm(-t2, bdnc, site1, Fbdna, site2, f);
     mpo_gen.AddTerm(t2, bupaF, site1, bupc, site2, f);
     mpo_gen.AddTerm(t2, bdna, site1, Fbdnc, site2, f);
-    cout << "add site (" << site1 << "," << site2 << ")  hopping2 term" << endl;
+    std::cout << "add site (" << site1 << "," << site2 << ")  hopping2 term" << std::endl;
 
     size_t Txmy = (y + Ly - 1) % Ly + (x + 1) * Ly;
     site1 = std::min(i, Txmy);
@@ -199,7 +198,7 @@ int main(int argc, char *argv[]) {
     mpo_gen.AddTerm(-t2, bdnc, site1, Fbdna, site2, f);
     mpo_gen.AddTerm(t2, bupaF, site1, bupc, site2, f);
     mpo_gen.AddTerm(t2, bdna, site1, Fbdnc, site2, f);
-    cout << "add site (" << site1 << "," << site2 << ")  hopping2 term" << endl;
+    std::cout << "add site (" << site1 << "," << site2 << ")  hopping2 term" << std::endl;
   }
 
   qlmps::FiniteMPO<QLTEN_Double, U1U1QN> finite_mpo = mpo_gen.Gen(false);
@@ -210,7 +209,7 @@ int main(int argc, char *argv[]) {
   using FiniteMPST = qlmps::FiniteMPS<TenElemT, U1U1QN>;
   FiniteMPST mps(sites);
 
-  std::vector<long unsigned int> stat_labs(N);
+  std::vector<size_t> stat_labs(N);
   size_t site_number_per_hole;
 
   site_number_per_hole = N / 8;
@@ -232,7 +231,7 @@ int main(int argc, char *argv[]) {
   );
 
   qlmps::DirectStateInitMps(mps, stat_labs);
-  cout << "Initial mps as direct product state." << endl;
+  std::cout << "Initial mps as direct product state." << std::endl;
   mps.Dump(sweep_params.mps_path, true);
 
   sweep_params.Dmin = 10;
@@ -254,7 +253,7 @@ int main(int argc, char *argv[]) {
 
   endTime = clock();
   double cpu_time = (double) (endTime - startTime) / CLOCKS_PER_SEC;
-  cout << "CPU Time : " << cpu_time << "s" << endl;
+  std::cout << "CPU Time : " << cpu_time << "s" << std::endl;
   MPI_Finalize();
   return 0;
 }

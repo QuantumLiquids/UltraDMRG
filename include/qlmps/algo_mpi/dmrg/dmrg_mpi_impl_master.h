@@ -122,18 +122,6 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
   assert(mps_.size() == mat_repr_mpo_.size());
   MasterBroadcastOrder(program_start, rank_, comm_);
-
-  for (size_t node = 1; node < mpi_size_; node++) {
-    size_t node_num;
-    hp_numeric::MPI_Recv(node_num, node, 2 * node, comm_);
-    if (node_num == node) {
-      std::cout << "Node " << node << " received the program start order." << std::endl;
-    } else {
-      std::cout << "unexpected " << std::endl;
-      exit(1);
-    }
-  }
-
   DMRGInit_();
 
   std::cout << "\n";
@@ -152,8 +140,6 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::Execute() {
 
 template<typename TenElemT, typename QNT>
 double DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGSweep_() {
-  using TenT = QLTensor<TenElemT, QNT>;
-
   dir_ = 'r';
   //TODO : asynchronous IO
   for (size_t i = left_boundary_; i < right_boundary_ - 1; ++i) {

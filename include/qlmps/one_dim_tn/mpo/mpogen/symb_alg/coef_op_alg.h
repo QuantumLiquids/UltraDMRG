@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
-#include <assert.h>
+#include <cassert>
 #include "qlmps/one_dim_tn/mpo/mpogen/symb_alg/sparse_mat.h"
 
 #ifdef Release

@@ -217,12 +217,12 @@ template<typename TenElemT, typename QNT>
 void FiniteMPS<TenElemT, QNT>::RightCanonicalize(const size_t stop_idx) {
   auto mps_tail_idx = this->size() - 1;
   size_t start_idx;
-  for (size_t i = mps_tail_idx; i >= stop_idx; --i) {
+  for (long i = mps_tail_idx; i >= stop_idx; --i) {
     start_idx = i;
     if (tens_cano_type_[i] != MPSTenCanoType::RIGHT) { break; }
     if (i == stop_idx) { return; }    // All related tensors are right canonical, do nothing.
   }
-  for (size_t i = start_idx; i >= stop_idx; --i) { RightCanonicalizeTen(i); }
+  for (long i = start_idx; i >= stop_idx; --i) { RightCanonicalizeTen(i); }
 }
 
 template<typename TenElemT, typename QNT>

@@ -37,8 +37,6 @@ inline bool NeedGenerateBlockOps(
 
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
-  using Tensor = QLTensor<TenElemT, QNT>;
-
   std::cout << "\n";
   std::cout << "=====> Sweep Parameters For DMRG <=====" << "\n";
   std::cout << "MPS/MPO size: \t " << mps_.size() << "\n";
@@ -110,11 +108,10 @@ inline bool NeedGenerateBlockOps(
   }
 }
 
-
 template<typename TenElemT, typename QNT>
 RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
-  const std::vector<QLTensor<TenElemT, QNT>>& site_block_ops,
-  const QLTensor<TenElemT, QNT> &mps
+    const std::vector<QLTensor<TenElemT, QNT>> &site_block_ops,
+    const QLTensor<TenElemT, QNT> &mps
 ) {
   auto mps_dag = Dag(mps);
   RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> rog_next(site_block_ops.size());
@@ -168,8 +165,8 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
 
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
-  const std::vector<QLTensor<TenElemT, QNT>>& block_site_ops,
-  const QLTensor<TenElemT, QNT> &mps) {
+    const std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,
+    const QLTensor<TenElemT, QNT> &mps) {
   auto mps_dag = Dag(mps);
   LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> log_next(block_site_ops.size());
   for (size_t i = 0; i < block_site_ops.size(); i++) {
@@ -179,7 +176,6 @@ LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
   }
   return log_next;
 }
-
 
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(

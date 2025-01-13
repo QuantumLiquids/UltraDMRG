@@ -23,7 +23,7 @@ class DMRGMPISlaveExecutor : public Executor {
   void Execute() override;
 
   size_t GetId() {
-    return id_;
+    return rank_;
   }
 
  private:
@@ -55,7 +55,7 @@ class DMRGMPISlaveExecutor : public Executor {
   BlockSiteHamiltonianTermGroup<Tensor> block_site_hamiltonian_term_group_; // a temp datum
   SiteBlockHamiltonianTermGroup<Tensor> site_block_hamiltonian_term_group_; // a temp datum
 
-  int id_;
+  int rank_;
   int master_rank_ = kMPIMasterRank;
   int mpi_size_;
   const MPI_Comm &comm_;
@@ -68,7 +68,7 @@ DMRGMPISlaveExecutor<TenElemT, QNT>::DMRGMPISlaveExecutor(
 ):N_(mat_repr_mpo.size()),
   mat_repr_mpo_(mat_repr_mpo), dir_('r'),
   comm_(comm) {
-  MPI_Comm_rank(comm, &id_);
+  MPI_Comm_rank(comm, &rank_);
   MPI_Comm_size(comm, &mpi_size_);
   SetStatus(ExecutorStatus::INITED);
 }
@@ -77,10 +77,8 @@ template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
   auto order = SlaveGetBroadcastOrder(master_rank_, comm_);
-  if (order == program_start) {
-    hp_numeric::MPI_Send(id_, master_rank_, 2 * id_, comm_);
-  } else {
-    std::cout << "unexpected " << std::endl;
+  if (order != program_start) {
+    std::cout << "Instruction received by rank " << rank_ << " is unexpected!" << std::endl;
     exit(1);
   }
 
@@ -107,9 +105,9 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::Execute() {
         WorkForGrowRightBlockOps_();
       }
         break;
-      case program_final:std::cout << "Node" << id_ << " will stop." << std::endl;
+      case program_final:std::cout << "Node" << rank_ << " will stop." << std::endl;
         break;
-      default:std::cout << "Node " << id_ << " cannot understand the order " << order << std::endl;
+      default:std::cout << "Node " << rank_ << " cannot understand the order " << order << std::endl;
         break;
     }
   }
@@ -142,7 +140,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
   Tensor mps_dag = Dag(mps);
 
   if (task_num <= mpi_size_ - 1) {
-    if (id_ <= task_num) {
+    if (rank_ <= task_num) {
       RecvSiteBlockHamiltonianTermGroup_();
       const size_t terms_num = site_block_hamiltonian_term_group_.size();
       auto psite_block_ops_res_s = std::vector<Tensor *>(terms_num);
@@ -163,7 +161,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
       Tensor temp, res;
       Contract(&mps, &site_block_op, {{1, 2}, {0, 1}}, &temp);
       Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &res);
-      res.MPI_Send(master_rank_, id_ - 1, comm_);
+      res.MPI_Send(master_rank_, rank_ - 1, comm_);
       //delete site_block_hamiltonian_term_group_ data
       for (size_t i = 0; i < terms_num; i++) {
         delete site_block_hamiltonian_term_group_[i][0];
@@ -172,7 +170,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
     }
   } else {//task_num > slave number
     size_t task_id;
-    hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
+    hp_numeric::MPI_Recv(task_id, master_rank_, rank_, comm_);
     while (task_id < task_num) {
       RecvSiteBlockHamiltonianTermGroup_();
       const size_t terms_num = site_block_hamiltonian_term_group_.size();
@@ -200,7 +198,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
         delete site_block_hamiltonian_term_group_[i][0];
         delete site_block_hamiltonian_term_group_[i][1];
       }
-      hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
+      hp_numeric::MPI_Recv(task_id, master_rank_, rank_, comm_);
     }
 
   }
@@ -209,14 +207,14 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::UpdateRightBlockOpsSlave_() {
 template<typename TenElemT, typename QNT>
 MPI_Status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvBlockSiteHamiltonianTermGroup_() {
   size_t num_terms;
-  hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * id_, comm_);
+  hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * rank_, comm_);
   block_site_hamiltonian_term_group_.resize(num_terms);
   MPI_Status status;
   for (size_t i = 0; i < num_terms; i++) {
     block_site_hamiltonian_term_group_[i][0] = new Tensor();
-    status = block_site_hamiltonian_term_group_[i][0]->MPI_Recv(master_rank_, i * id_, comm_);
+    status = block_site_hamiltonian_term_group_[i][0]->MPI_Recv(master_rank_, i * rank_, comm_);
     block_site_hamiltonian_term_group_[i][1] = new Tensor();
-    status = block_site_hamiltonian_term_group_[i][1]->MPI_Recv(master_rank_, i * id_, comm_);
+    status = block_site_hamiltonian_term_group_[i][1]->MPI_Recv(master_rank_, i * rank_, comm_);
   }
   return status;
 }
@@ -224,17 +222,17 @@ MPI_Status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvBlockSiteHamiltonianTermGrou
 template<typename TenElemT, typename QNT>
 MPI_Status DMRGMPISlaveExecutor<TenElemT, QNT>::RecvSiteBlockHamiltonianTermGroup_() {
   size_t num_terms;
-  auto status = hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * id_, comm_);
+  auto status = hp_numeric::MPI_Recv(num_terms, master_rank_, 2 * rank_, comm_);
   site_block_hamiltonian_term_group_.resize(num_terms);
 
   for (size_t i = 0; i < num_terms; i++) {
     site_block_hamiltonian_term_group_[i][0] = new Tensor();
     Tensor &h_site = *site_block_hamiltonian_term_group_[i][0];
-    status = h_site.MPI_Recv(master_rank_, i * id_, comm_);
+    status = h_site.MPI_Recv(master_rank_, i * rank_, comm_);
 
     site_block_hamiltonian_term_group_[i][1] = new Tensor();
     Tensor &h_env = *site_block_hamiltonian_term_group_[i][1];
-    status = h_env.MPI_Recv(master_rank_, i * id_, comm_);
+    status = h_env.MPI_Recv(master_rank_, i * rank_, comm_);
   }
   return status;
 }
@@ -255,19 +253,20 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::SlaveLanczosSolver_() {
 template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForDynamicHamiltonianMultiplyState_() {
 #ifdef QLMPS_MPI_TIMING_MODE
-  Timer slave_hamil_multiply_state_timer("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_total_time");
+  Timer slave_hamil_multiply_state_timer("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_total_time");
   Timer slave_hamil_multiply_state_computation_timer
-      ("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_computation");
+      ("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_computation");
   slave_hamil_multiply_state_computation_timer.Suspend();
   Timer slave_hamil_multiply_state_delete_timer
-      ("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_delete");
+      ("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_delete");
   slave_hamil_multiply_state_delete_timer.Suspend();
   Timer slave_hamil_multiply_state_contract_timer
-      ("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_contraction");
+      ("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_contraction");
   slave_hamil_multiply_state_contract_timer.Suspend();
-  Timer slave_hamil_multiply_state_sum_timer("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_summation");
+  Timer slave_hamil_multiply_state_sum_timer("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_summation");
   slave_hamil_multiply_state_sum_timer.Suspend();
-  Timer slave_hamil_multiply_state_transpose_timer("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_transpose");
+  Timer slave_hamil_multiply_state_transpose_timer
+      ("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_transpose");
   slave_hamil_multiply_state_transpose_timer.Suspend();
 #endif
 
@@ -289,7 +288,7 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForDynamicHamiltonianMultiplyState
 
   size_t task_id;
   do {
-    hp_numeric::MPI_Recv(task_id, master_rank_, id_, comm_);
+    hp_numeric::MPI_Recv(task_id, master_rank_, rank_, comm_);
     if (task_id > total_num_terms) {
       terminated = true;
     } else {
@@ -407,9 +406,9 @@ template<typename TenElemT, typename QNT>
 void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForStaticHamiltonianMultiplyState_() {
   const size_t num_terms = block_site_ops_.size();
 #ifdef QLMPS_MPI_TIMING_MODE
-  Timer slave_hamil_multiply_state_timer("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_total_time");
+  Timer slave_hamil_multiply_state_timer("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_total_time");
   Timer slave_hamil_multiply_state_computation_timer
-      ("node-" + std::to_string(id_) + "_hamiltonian_multiply_state_computation_time_task_num="
+      ("node-" + std::to_string(rank_) + "_hamiltonian_multiply_state_computation_time_task_num="
            + std::to_string(num_terms));
   slave_hamil_multiply_state_computation_timer.Suspend();
 #endif
@@ -489,8 +488,8 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForGrowLeftBlockOps_() {
     Tensor lop, temp;
     Contract(&block_site_ops_[i], &mps, {{2, 3}, {0, 1}}, &temp);
     Contract(&temp, &mps_dag, {{0, 1}, {0, 1}}, &lop);
-    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, id_, comm_);
-    lop.MPI_Send(master_rank_, id_, comm_);
+    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, rank_, comm_);
+    lop.MPI_Send(master_rank_, rank_, comm_);
   }
 }
 
@@ -504,8 +503,8 @@ void DMRGMPISlaveExecutor<TenElemT, QNT>::WorkForGrowRightBlockOps_() {
     Tensor rop, temp;
     Contract(&mps, &site_block_ops_[i], {{1, 2}, {0, 1}}, &temp);
     Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &rop);
-    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, id_, comm_);
-    rop.MPI_Send(master_rank_, id_, comm_);
+    hp_numeric::MPI_Send(ops_num_table_[i], master_rank_, rank_, comm_);
+    rop.MPI_Send(master_rank_, rank_, comm_);
   }
 }
 
