@@ -37,16 +37,21 @@ void combine_operators_in_super_blk_hamiltonian(
 
 template<typename TenElemT, typename QNT>
 QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
+    const SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
+    const QLTensor<TenElemT, QNT> *state
+);
+
+// will be deprecated in future
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
     const std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,
     const std::vector<QLTensor<TenElemT, QNT>> &site_block_ops,
-    QLTensor<TenElemT, QNT> *state
+    const QLTensor<TenElemT, QNT> *state
 );
 
 /**
 Obtain the lowest energy eigenvalue and corresponding eigenstate from the effective
 Hamiltonian and a initial state using Lanczos algorithm.
-
-eff_ham will be erased after calling Lanczos
 
 @param peff_ham Effective Hamiltonian as a vector of pointer-to-tensors.
 @param pinit_state Pointer to initial state for Lanczos iteration.
@@ -56,9 +61,7 @@ template<typename TenT>
 LanczosRes<TenT> LanczosSolver(
     SuperBlockHamiltonianTerms<TenT> &eff_ham,
     TenT *pinit_state,
-    const LanczosParams &params,
-    std::vector<TenT> &block_site_ops,  //output
-    std::vector<TenT> &site_block_ops   //output
+    const LanczosParams &params
 ) {
   // Take care that init_state will be destroyed after call the solver
   size_t eff_ham_eff_dim = pinit_state->size();
@@ -81,17 +84,16 @@ LanczosRes<TenT> LanczosSolver(
   pinit_state->Normalize();
   bases[0] = pinit_state;
 
-
 #ifdef QLMPS_TIMING_MODE
   std::cout << "lanczos start. " << std::endl;
   Timer super_blk_hamil_timer("super_blk_hamil_gene");
 #endif
-  combine_operators_in_super_blk_hamiltonian(eff_ham, block_site_ops, site_block_ops);
+
 #ifdef QLMPS_TIMING_MODE
   super_blk_hamil_timer.PrintElapsed();
   Timer mat_vec_timer("lancz_mat_vec");
 #endif
-  auto last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(block_site_ops, site_block_ops, bases[0]);
+  auto last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(eff_ham, bases[0]);
 
 #ifdef QLMPS_TIMING_MODE
   mat_vec_timer.PrintElapsed();
@@ -153,7 +155,7 @@ LanczosRes<TenT> LanczosSolver(
     mat_vec_timer.ClearAndRestart();
 #endif
 
-    last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(block_site_ops, site_block_ops, bases[m]);
+    last_mat_mul_vec_res = super_block_hamiltonian_mul_two_site_state(eff_ham, bases[m]);
 
 #ifdef QLMPS_TIMING_MODE
     mat_vec_timer.PrintElapsed();
@@ -190,6 +192,93 @@ LanczosRes<TenT> LanczosSolver(
   }
 }
 
+// @note : new result inside the function, will be deleted in SiteBlockTermsMulTwoSiteState
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> *BlockSiteTermsMulTwoSiteState(
+    const BlockSiteHamiltonianTermGroup<QLTensor<TenElemT, QNT>> &blk_site_terms,
+    const QLTensor<TenElemT, QNT> *state // in-place multiplication
+) {
+  using TenT = QLTensor<TenElemT, QNT>;
+  TenT *res = new TenT();
+  for (size_t i = 0; i < blk_site_terms.size(); i++) {
+    auto &term = blk_site_terms[i];
+    TenT temp;
+    Contract<TenElemT, QNT, false, true>(*state, *term.at(0), 0, 0, 1, temp);
+    if (i == 0) {
+      Contract<TenElemT, QNT, false, true>(temp, *term[1], 0, 0, 1, *res);
+    } else {
+      TenT temp2;
+      Contract<TenElemT, QNT, false, true>(temp, *term[1], 0, 0, 1, temp2);
+      *res += temp2;
+    }
+  }
+  return res;
+}
+
+// @note : new result inside the function, and the input state will be deleted
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> *SiteBlockTermsMulTwoSiteState(
+    const SiteBlockHamiltonianTermGroup<QLTensor<TenElemT, QNT>> &site_blk_terms,
+    const QLTensor<TenElemT, QNT> *res_from_blk_site_multi
+) {
+  using TenT = QLTensor<TenElemT, QNT>;
+  TenT *res = new TenT();
+  for (size_t i = 0; i < site_blk_terms.size(); i++) {
+    auto &term = site_blk_terms[i];
+    TenT temp;
+    Contract<TenElemT, QNT, false, true>(*res_from_blk_site_multi, *term.at(0), 0, 0, 1, temp);
+    if (i == 0) {
+      Contract<TenElemT, QNT, false, true>(temp, *term.at(1), 0, 0, 1, *res);
+    } else {
+      TenT temp2;
+      Contract<TenElemT, QNT, false, true>(temp, *term.at(1), 0, 0, 1, temp2);
+      *res += temp2;
+    }
+  }
+  delete res_from_blk_site_multi;
+  return res;
+}
+
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> *SuperBlockHamiltonianTermMultiTwoSiteState(
+    const std::pair<BlockSiteHamiltonianTermGroup<QLTensor<TenElemT, QNT>>,
+                    SiteBlockHamiltonianTermGroup<QLTensor<TenElemT, QNT>>> &ham_term,
+    const QLTensor<TenElemT, QNT> *state
+) {
+  auto *temp = BlockSiteTermsMulTwoSiteState(ham_term.first, state);
+  return SiteBlockTermsMulTwoSiteState(ham_term.second, temp);
+}
+
+/*
+ * |----1                       1-----
+ * |          1        1             |
+ * |          |        |             |
+ * |          |        |             |
+ * |==========0-*-*-*-*0=============|
+ * |          1        2             |
+ * |          |        |             |
+ * |----0 0-------------------3 0----|
+ */
+
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
+    const SuperBlockHamiltonianTerms<QLTensor<TenElemT, QNT>> &eff_ham,
+    const QLTensor<TenElemT, QNT> *state
+) {
+  using TenT = QLTensor<TenElemT, QNT>;
+  TenT *res;
+  for (size_t i = 0; i < eff_ham.size(); i++) {
+    if (i == 0) {
+      res = SuperBlockHamiltonianTermMultiTwoSiteState(eff_ham[i], state);
+    } else {
+      auto *temp = SuperBlockHamiltonianTermMultiTwoSiteState(eff_ham[i], state);
+      *res += *temp;
+      delete temp;
+    }
+  }
+  return res;
+}
+
 /*
  * |----1                       1-----
  * |          1        1             |
@@ -214,11 +303,11 @@ void combine_operators_in_super_blk_hamiltonian( //first time do this
   for (size_t i = 0; i < num_terms; i++) {
     // for block-site
     auto &block_site_terms = eff_ham[i].first;
-    if constexpr(save_mem) {
+    if constexpr (save_mem) {
       for (size_t j = 0; j < block_site_terms.size(); j++) {
         TenT temp;
         Contract(block_site_terms[j][0], block_site_terms[j][1], {{}, {}}, &temp);
-        if(j == 0 ){
+        if (j == 0) {
           block_site_ops[i] = temp;
         } else {
           block_site_ops[i] += temp;
@@ -250,11 +339,11 @@ void combine_operators_in_super_blk_hamiltonian( //first time do this
   for (size_t i = 0; i < num_terms; i++) {
     // for site-block
     auto &site_block_terms = eff_ham[i].second;
-    if constexpr(save_mem){
+    if constexpr (save_mem) {
       for (size_t j = 0; j < site_block_terms.size(); j++) {
         TenT temp;
         Contract(site_block_terms[j][0], site_block_terms[j][1], {{}, {}}, &temp);
-        if (j == 0){
+        if (j == 0) {
           site_block_ops[i] = temp;
         } else {
           site_block_ops[i] += temp;
@@ -290,7 +379,7 @@ template<typename TenElemT, typename QNT>
 QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
     const std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,
     const std::vector<QLTensor<TenElemT, QNT>> &site_block_ops,
-    QLTensor<TenElemT, QNT> *state
+    const QLTensor<TenElemT, QNT> *state
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   size_t num_terms = block_site_ops.size();
@@ -304,7 +393,7 @@ QLTensor<TenElemT, QNT> *super_block_hamiltonian_mul_two_site_state(
         Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, res);
       } else {
         Contract(&temp1, &site_block_ops[i], {{2, 3}, {0, 1}}, &temp2);
-	*res += temp2;
+        *res += temp2;
       }
     }
   } else {

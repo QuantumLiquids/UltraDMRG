@@ -127,7 +127,7 @@ if (QLMPS_USE_GPU)
                 PRIVATE ${CUTENSOR_LIBRARY}
                 PRIVATE GTest::GTest GTest::Main
                 "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-        ) #remove MPI dependence since GPU code not support MPI upto now
+        ) #No MPI dependence since GPU code does not support MPI now
 
 
         add_test(
@@ -200,31 +200,6 @@ else ()
                     ${MPIEXEC_NUMPROC_FLAG} ${PROCESSOR_NUM}
                     $<TARGET_FILE:${TEST_NAME}>)
         endif ()
-        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-    endmacro()
-
-
-    macro(compile_unittest
-            TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS)
-        add_executable(${TEST_NAME}
-                ${TEST_SRC})
-
-        target_compile_options(${TEST_NAME}
-                PRIVATE ${CFLAGS}
-                PRIVATE ${OMP_FLAGS}
-        )
-        target_include_directories(${TEST_NAME}
-                PRIVATE ${QLMPS_HEADER_PATH}
-                PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-                PRIVATE ${hptt_INCLUDE_DIR}
-                PRIVATE ${MPI_CXX_HEADER_DIR})
-        target_link_libraries(${TEST_NAME}
-                GTest::GTest GTest::Main
-                ${hptt_LIBRARY}
-                ${MPI_CXX_LINK_FLAGS}
-                ${MPI_mpi_LIBRARY}
-                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-        )
         set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
     endmacro()
 endif ()

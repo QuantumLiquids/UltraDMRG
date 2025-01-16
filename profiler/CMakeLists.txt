@@ -166,4 +166,4 @@ add_profiler_case(single_processor_lanczos_performance_test
 #  "test_mpi_algorithm/single_processor_svd_performance_test.cc"
 #  "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}"
 #)
-#above test include nested omp so just neglect now
+#nested omp SVD has been abandoned

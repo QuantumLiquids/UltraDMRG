@@ -22,15 +22,17 @@ using namespace qlten;
 
 //forward declaration
 template<typename TenElemT, typename QNT>
-RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
-    const std::vector<QLTensor<TenElemT, QNT>> &site_block_ops,
-    const QLTensor<TenElemT, QNT> &mps
+LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
+    const LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> &log,   // site i's env tensors
+    const QLTensor<TenElemT, QNT> &mps,                       // site i
+    const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
 );
 
 template<typename TenElemT, typename QNT>
-LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
-    const std::vector<QLTensor<TenElemT, QNT>> &block_site_ops,
-    const QLTensor<TenElemT, QNT> &mps
+RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
+    const RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> &rog,   // site i's env tensors
+    const QLTensor<TenElemT, QNT> &mps,                       // site i
+    const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
 );
 
 template<typename TenElemT, typename QNT>
@@ -53,7 +55,7 @@ class DMRGExecutor : public Executor {
   void DMRGInit_();
   double DMRGSweep_();
 
-  void LoadRelatedTensSweep_();
+  double LoadRelatedTensSweep_();
   void SetEffectiveHamiltonianTerms_();
   double TwoSiteUpdate_();
   void DumpRelatedTensSweep_();
@@ -65,6 +67,7 @@ class DMRGExecutor : public Executor {
 
   std::vector<LeftBlockOperatorGroup<Tensor>> lopg_vec_;
   std::vector<RightBlockOperatorGroup<Tensor>> ropg_vec_;
+  double op_mem_ = 0;
 
   size_t left_boundary_;
   size_t right_boundary_;
@@ -73,8 +76,6 @@ class DMRGExecutor : public Executor {
   size_t l_site_;
   size_t r_site_;
 
-  std::vector<Tensor> block_site_ops_;
-  std::vector<Tensor> site_block_ops_;
   SuperBlockHamiltonianTerms<Tensor> hamiltonian_terms_;
 };
 
@@ -135,7 +136,7 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   for (size_t i = left_boundary_; i < right_boundary_ - 1; ++i) {
     l_site_ = i;
     r_site_ = i + 1;
-    LoadRelatedTensSweep_();
+    double mem_load = LoadRelatedTensSweep_();
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
@@ -145,7 +146,7 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   for (size_t i = right_boundary_; i > left_boundary_ + 1; --i) {
     l_site_ = i - 1;
     r_site_ = i;
-    LoadRelatedTensSweep_();
+    double mem_load = LoadRelatedTensSweep_();
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
@@ -178,24 +179,11 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Timer lancz_timer("two_site_dmrg_lancz");
   auto lancz_res = LanczosSolver(
       hamiltonian_terms_, init_state,
-      sweep_params.lancz_params,
-      block_site_ops_,
-      site_block_ops_
-  );  // hamiltonian_terms_ will be erased after calling Lanczos
-  lopg_vec_[l_site_].clear();
-  ropg_vec_[(N_ - 1) - r_site_].clear();
+      sweep_params.lancz_params
+  );
+  hamiltonian_terms_.clear();// this clear doesn't effect on the tensor raw data.
   auto lancz_elapsed_time = lancz_timer.Elapsed();
   const double state_mem = lancz_res.gs_vec->GetRawDataMemUsage();
-  const double block_site_mem = EvaluateOpMem(block_site_ops_);
-  const double site_block_mem = EvaluateOpMem(site_block_ops_);
-
-  switch (dir_) {
-    case 'r':site_block_ops_.clear();
-      break;
-    case 'l':block_site_ops_.clear();
-      break;
-    default:assert(false);
-  }
 
   //svd,
 #ifdef QLMPS_TIMING_MODE
@@ -247,13 +235,11 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 #endif
   switch (dir_) {
     case 'r': {
-      lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(block_site_ops_, mps_[l_site_]);
-      block_site_ops_.clear();
+      lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(lopg_vec_[l_block_len], mps_[l_site_], mat_repr_mpo_[l_site_]);
     }
       break;
     case 'l': {
-      ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(site_block_ops_, mps_[r_site_]);
-      site_block_ops_.clear();
+      ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(ropg_vec_[r_block_len], mps_[r_site_], mat_repr_mpo_[r_site_]);
     }
       break;
     default:assert(false);
@@ -271,7 +257,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
             << " LanczT = " << std::setw(8) << lancz_elapsed_time
             << " TotT = " << std::setw(8) << update_elapsed_time
             << " StateMem = " << std::setw(8) << state_mem << "GB"
-            << " OpsMem = " << std::setw(8) << block_site_mem + site_block_mem << "GB"
+            << " OpsMem = " << std::setw(8) << op_mem_ << "GB"
             << " S = " << std::setw(10) << std::setprecision(7) << ee;
   std::cout << std::scientific << std::endl;
   return lancz_res.gs_eng;
@@ -280,10 +266,6 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::SetEffectiveHamiltonianTerms_() {
   assert(hamiltonian_terms_.empty());
-  assert(block_site_ops_.empty());
-  assert(site_block_ops_.empty());
-  // in the sense of this function, we should set the block_site_ops_ and site_block_ops_ here
-  // but, for the convenience of MPI parallel, we move this part into LanczosSolver_
   for (size_t j = 0; j < mat_repr_mpo_[l_site_].cols; j++) { // the middle index
     BlockSiteHamiltonianTermGroup<Tensor> block_site_terms; //left two blocks
     SiteBlockHamiltonianTermGroup<Tensor> site_block_terms; //right two blocks
@@ -310,6 +292,8 @@ void DMRGExecutor<TenElemT, QNT>::DumpRelatedTensSweep_() {
 #ifdef QLMPS_TIMING_MODE
   Timer postprocessing_timer("two_site_dmrg_postprocessing");
 #endif
+  lopg_vec_[l_site_].clear();
+  ropg_vec_[(N_ - 1) - r_site_].clear();
   switch (dir_) {
     case 'r':
       mps_.DumpTen(
@@ -335,11 +319,12 @@ void DMRGExecutor<TenElemT, QNT>::DumpRelatedTensSweep_() {
 }
 
 template<typename TenElemT, typename QNT>
-void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
+double DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
 ) {
 #ifdef QLMPS_TIMING_MODE
   Timer preprocessing_timer("two_site_dmrg_preprocessing");
 #endif
+  op_mem_ = 0.0;
   switch (dir_) {
     case 'r':
       if (l_site_ == left_boundary_) {
@@ -354,6 +339,10 @@ void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
         size_t ropg_size = mat_repr_mpo_[r_site_].cols;
         ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
         ReadAndRemoveOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
+
+//        mem += mps_[l_site_].GetRawDataMemUsage();
+        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
+        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       } else {
         mps_.LoadTen(r_site_,
                      GenMPSTenName(sweep_params.mps_path, r_site_)
@@ -362,6 +351,9 @@ void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
         size_t ropg_size = mat_repr_mpo_[r_site_].cols;
         ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
         ReadAndRemoveOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
+
+//        mem += mps_[r_site_].GetRawDataMemUsage();
+        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       }
       break;
     case 'l':
@@ -377,6 +369,10 @@ void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
         size_t lopg_size = mat_repr_mpo_[l_site_].rows;
         lopg_vec_[l_site_] = LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>>(lopg_size);
         ReadAndRemoveOperatorGroup("l", lblock_len, lopg_vec_[l_site_], sweep_params.temp_path);
+
+//        mem += mps_[r_site_].GetRawDataMemUsage();
+        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
+        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       } else {
         mps_.LoadTen(l_site_,
                      GenMPSTenName(sweep_params.mps_path, l_site_)
@@ -385,6 +381,9 @@ void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
         size_t lopg_size = mat_repr_mpo_[l_site_].rows;
         lopg_vec_[l_site_] = LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>>(lopg_size);
         ReadAndRemoveOperatorGroup("l", lblock_len, lopg_vec_[l_site_], sweep_params.temp_path);
+
+//        mem += mps_[l_site_].GetRawDataMemUsage();
+        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
       }
       break;
     default:assert(false);
@@ -392,6 +391,7 @@ void DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
 #ifdef QLMPS_TIMING_MODE
   preprocessing_timer.PrintElapsed();
 #endif
+  return op_mem_;
 }
 
 template<typename TenElemT, typename QNT>
