@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghx18@mails.tsinghua.edu.cn>
 * Creation Date: 2021-08-20
 *
-* Description: GraceQ/mps2 project. SVD performance test on single processor
+* Description: QuantumLiquids/MPS project. SVD performance test on single processor
 */
 
 /**
@@ -43,8 +43,8 @@ using IndexT = Index<U1U1QN>;
 using QNSctT = QNSector<U1U1QN>;
 using QNSctVecT = QNSectorVec<U1U1QN>;
 
-using DGQTensor = GQTensor<GQTEN_Double, U1U1QN>;
-using ZGQTensor = GQTensor<GQTEN_Complex, U1U1QN>;
+using DQLTensor = QLTensor<QLTEN_Double, U1U1QN>;
+using ZQLTensor = QLTensor<QLTEN_Complex, U1U1QN>;
 
 const std::vector<size_t> default_thread_nums = {10, 20, 40, 80};
 const std::vector<size_t> default_outer_thread_nums = {1, 2};
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 
 
   //Loading file
-  DGQTensor state;
+  DQLTensor state;
   std::string file = "state.gqten";
 
   if (access(file.c_str(), 4) != 0) {
@@ -111,13 +111,13 @@ int main(int argc, char *argv[]) {
 
 
 // ???
-// #ifndef GQTEN_TIMING_MODE
-// #define GQTEN_TIMING_MODE
+// #ifndef QLTEN_TIMING_MODE
+// #define QLTEN_TIMING_MODE
 // #endif
 
   const size_t svd_ldims = 2;
   const U1U1QN left_div = Div(state);
-  const GQTEN_Double trunc_err = 1e-8;
+  const QLTEN_Double trunc_err = 1e-8;
   const size_t Dmin = state.GetIndexes()[0].dim();
   const size_t Dmax = Dmin;
 
@@ -132,12 +132,9 @@ int main(int argc, char *argv[]) {
       continue;
     }
     hp_numeric::SetTensorManipulationTotalThreads(total_thread_nums[i]);
-    hp_numeric::SetTensorTransposeNumThreads(total_thread_nums[i]);
     for (size_t j = 0; j < outer_thread_nums.size(); j++) {
-      hp_numeric::SetTensorDecompOuterParallelThreads(outer_thread_nums[j]);
-
-      DGQTensor u, s, vt;
-      GQTEN_Double actual_trunc_err;
+      DQLTensor u, s, vt;
+      QLTEN_Double actual_trunc_err;
       size_t D;
       Timer single_process_svd_timer("single processor SVD (total thread "
                                          + std::to_string(total_thread_nums[i])
@@ -152,7 +149,7 @@ int main(int argc, char *argv[]) {
       );
       single_process_svd_timer.PrintElapsed();
 
-      u = std::move(DGQTensor());
+      u = std::move(DQLTensor());
       s = u;
       vt = u;
       single_process_svd_timer.ClearAndRestart();

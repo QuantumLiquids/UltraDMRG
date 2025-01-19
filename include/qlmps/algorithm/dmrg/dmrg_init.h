@@ -77,6 +77,7 @@ void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
                          left_boundary_,
                          right_boundary_
   );
+  assert(mps_.empty());
 }
 
 ///< if need to generate block operators
@@ -132,33 +133,24 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
   using TenT = QLTensor<TenElemT, QNT>;
   assert(rog.size() == mat_repr_mpo.cols);
   RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> rog_next(mat_repr_mpo.rows);
-  std::vector<QLTensor<TenElemT, QNT>> temp_vec1(rog.size()); // rog * mps;
-  std::vector<QLTensor<TenElemT, QNT>> temp_vec2(rog_next.size()); //rog * mps * mat_repr_mpo
-
-
-  for (size_t i = 0; i < rog.size(); i++) {
-    Contract(&mps, &rog[i], {{2}, {0}}, &temp_vec1[i]);
-  }
+  TenT mps_dag = Dag(mps);
 
   for (size_t row = 0; row < mat_repr_mpo.rows; row++) {
+    TenT site_block_op;
     for (size_t col = 0; col < mat_repr_mpo.cols; col++) {
       if (!mat_repr_mpo.IsNull(row, col)) {
-        QLTensor<TenElemT, QNT> temp;
-        Contract(&temp_vec1[col], &mat_repr_mpo(row, col), {{1}, {0}}, &temp);
-        if (temp_vec2[row] == TenT()) {
-          temp_vec2[row] = std::move(temp);
+        TenT temp;
+        Contract(&mat_repr_mpo(row, col), &rog[col], {{}, {}}, &temp);
+        if (site_block_op == TenT()) {
+          site_block_op = temp;
         } else {
-          temp_vec2[row] += temp;
+          site_block_op += temp;
         }
       }
     }
-#ifndef NDEBUG
-    assert(temp_vec2[row] != TenT());
-#endif
-  }
-  TenT mps_dag = Dag(mps);
-  for (size_t i = 0; i < rog_next.size(); i++) {
-    Contract(&temp_vec2[i], &mps_dag, {{1, 2}, {2, 1}}, &rog_next[i]);
+    TenT temp;
+    Contract(&mps, &site_block_op, {{1, 2}, {0, 2}}, &temp);
+    Contract(&temp, &mps_dag, {{1, 2}, {1, 2}}, &rog_next[row]);
   }
   return rog_next;
 }
@@ -180,38 +172,29 @@ LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
 template<typename TenElemT, typename QNT>
 LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateLeftBlockOps(
     const LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> &log,   // site i's env tensors
-    const QLTensor<TenElemT, QNT> &mps,                       // site i
-    const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
+    const QLTensor<TenElemT, QNT> &mps,                           // site i
+    const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo          // site i
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   assert(log.size() == mat_repr_mpo.rows);
   LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>> log_next(mat_repr_mpo.cols);
-  std::vector<QLTensor<TenElemT, QNT>> temp_vec1(log.size()); // rog * mps;
-  std::vector<QLTensor<TenElemT, QNT>> temp_vec2(log_next.size()); //rog * mps * mat_repr_mpo
-
-
-  for (size_t i = 0; i < log.size(); i++) {
-    Contract(&log[i], &mps, {{0}, {0}}, &temp_vec1[i]);
-  }
+  TenT mps_dag = Dag(mps);
   for (size_t col = 0; col < mat_repr_mpo.cols; col++) {
+    TenT block_site_op;
     for (size_t row = 0; row < mat_repr_mpo.rows; row++) {
       if (!mat_repr_mpo.IsNull(row, col)) {
-        QLTensor<TenElemT, QNT> temp;
-        Contract(&temp_vec1[row], &mat_repr_mpo(row, col), {{1}, {0}}, &temp);
-        if (temp_vec2[col] == TenT()) {
-          temp_vec2[col] = std::move(temp);
+        TenT temp;
+        Contract(&log[row], &mat_repr_mpo(row, col), {{}, {}}, &temp);
+        if (block_site_op == TenT()) {
+          block_site_op = temp;
         } else {
-          temp_vec2[col] += temp;
+          block_site_op += temp;
         }
       }
     }
-#ifndef NDEBUG
-    assert(temp_vec2[col] != TenT());
-#endif
-  }
-  TenT mps_dag = Dag(mps);
-  for (size_t i = 0; i < log_next.size(); i++) {
-    Contract(&temp_vec2[i], &mps_dag, {{0, 2}, {0, 1}}, &log_next[i]);
+    TenT temp;
+    Contract(&block_site_op, &mps, {{0, 2}, {0, 1}}, &temp);
+    Contract(&temp, &mps_dag, {{0, 1}, {0, 1}}, &log_next[col]);
   }
   return log_next;
 }

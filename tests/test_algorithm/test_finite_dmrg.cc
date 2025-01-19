@@ -4,7 +4,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2023-04-23
 *
-* Description: GraceQ/mps2 project. Unittest for DMRG.
+* Description: QuantumLiquids/MPS project. Unittest for DMRG.
 */
 
 #define QLTEN_COUNT_FLOPS 1

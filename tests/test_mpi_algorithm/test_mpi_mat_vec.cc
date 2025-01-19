@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2021-08-12
 *
-* Description: GraceQ/mps2 project. MPI effective hamiltonian multiply vector unittest
+* Description: QuantumLiquids/MPS project. MPI effective hamiltonian multiply vector unittest
 */
 
 #include "qlmps/algorithm/lanczos_params.h"
@@ -39,10 +39,9 @@ using ZQLTensor = QLTensor<QLTEN_Complex, U1U1QN>;
 
 // TEST(MPI_LANCZOS_TEST, MatrixMultiplyVector){
 int main(int argc, char *argv[]) {
-
-  using std::vector;
-  mpi::environment env;
-  const MPI_Comm comm = MPI_COMM_WORLD
+  MPI_Init(nullptr, nullptr);
+  int rank, mpi_size;
+  const MPI_Comm comm = MPI_COMM_WORLD;
   size_t thread_num;
   if (argc == 1) {// no input paramter
     thread_num = 12;
@@ -50,10 +49,9 @@ int main(int argc, char *argv[]) {
     thread_num = atoi(argv[1]);
   }
   hp_numeric::SetTensorManipulationThreads(thread_num);
-  hp_numeric::SetTensorTransposeNumThreads(thread_num);
   DQLTensor lenv, renv, mpo1, mpo2, mps1, mps2;
   std::vector<DQLTensor *> eff_ham = {&lenv, &mpo1, &mpo2, &renv};
-  if (comm.rank() == 0) {
+  if (rank == 0) {
     vector<DQLTensor *> load_ten_list = {&lenv, &renv, &mpo1, &mpo2, &mps1, &mps2};
     vector<std::string> file_name_list = {"lenv.qlten", "renv.qlten", "mpo_ten_l.qlten",
                                           "mpo_ten_r.qlten", "mps_ten_l.qlten", "mps_ten_r.qlten"};

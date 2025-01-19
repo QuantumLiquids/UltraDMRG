@@ -179,7 +179,7 @@ void TwoSiteFiniteTDVPSweep(
     const MPITDVPSweepParams<QNT> &sweep_params,
     const MPI_Comm &comm
 ) {
-  //comm.rank() == 0
+  //rank == 0
   using TenT = QLTensor<TenElemT, QNT>;
   FiniteMPS<TenElemT, QNT> mps(site_vec);
   auto N = mps.size();

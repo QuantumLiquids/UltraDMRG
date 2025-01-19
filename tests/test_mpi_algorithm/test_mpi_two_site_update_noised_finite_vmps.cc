@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2021-08-26
 *
-* Description: GraceQ/mps2 project. Unittest for MPI two sites algorithm.
+* Description: QuantumLiquids/MPS project. Unittest for MPI two sites algorithm.
 */
 
 

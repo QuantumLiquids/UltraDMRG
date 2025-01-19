@@ -3,7 +3,7 @@
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2019-05-14 16:08
 *
-* Description: GraceQ/mps2 project. Unittest for two sites algorithm.
+* Description: QuantumLiquids/MPS project. Unittest for two sites algorithm.
 */
 
 #define QLTEN_COUNT_FLOPS 1

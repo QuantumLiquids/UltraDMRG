@@ -5,7 +5,7 @@
 #  Author: Rongyang Sun <sun-rongyang@outlook.com>
 #  Creation Date: 2019-06-14 13:29
 #  
-#  Description: GraceQ/mps2 project. Timing log analysis tool.
+#  Description: QuantumLiquids/MPS project. Timing log analysis tool.
 # 
 import sys
 import re

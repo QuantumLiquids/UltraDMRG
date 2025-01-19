@@ -38,12 +38,12 @@ void SlaveLanczosSolver(
     const MPI_Comm &comm
 ) {
 // Receive Hamiltonian
-#ifdef GQMPS_MPI_TIMING_MODE
+#ifdef QLMPS_MPI_TIMING_MODE
   Timer broadcast_eff_ham_timer("broadcast_eff_ham_recv");
 #endif
   MPI_Bcast(*rpeff_ham[0], kMPIMasterRank, comm);
   MPI_Bcast(*rpeff_ham[two_site_eff_ham_size - 1], kMPIMasterRank, comm);
-#ifdef GQMPS_MPI_TIMING_MODE
+#ifdef QLMPS_MPI_TIMING_MODE
   broadcast_eff_ham_timer.PrintElapsed();
 #endif
 

@@ -3,7 +3,7 @@
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2019-05-12 10:19
 *
-* Description: GraceQ/mps2 project. Lanczos algorithm unittests.
+* Description: QuantumLiquids/MPS project. Lanczos algorithm unittests.
 */
 
 #include "gtest/gtest.h"

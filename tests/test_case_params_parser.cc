@@ -3,7 +3,7 @@
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2019-06-04 20:20
 * 
-* Description: GraceQ/mps2 project. Unittests for simulation case parameters parser.
+* Description: QuantumLiquids/MPS project. Unittests for simulation case parameters parser.
 */
 
 #include "gtest/gtest.h"

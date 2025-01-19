@@ -3,7 +3,7 @@
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2019-05-12 11:10
 * 
-* Description: GraceQ/mps2 project. Testing utilities.
+* Description: QuantumLiquids/MPS project. Testing utilities.
 */
 #ifndef QLMPS_TESTING_UTILS_H
 #define QLMPS_TESTING_UTILS_H

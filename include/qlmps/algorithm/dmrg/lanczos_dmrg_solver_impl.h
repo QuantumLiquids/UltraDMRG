@@ -196,7 +196,7 @@ LanczosRes<TenT> LanczosSolver(
 template<typename TenElemT, typename QNT>
 QLTensor<TenElemT, QNT> *BlockSiteTermsMulTwoSiteState(
     const BlockSiteHamiltonianTermGroup<QLTensor<TenElemT, QNT>> &blk_site_terms,
-    const QLTensor<TenElemT, QNT> *state // in-place multiplication
+    const QLTensor<TenElemT, QNT> *state
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   TenT *res = new TenT();
@@ -219,7 +219,7 @@ QLTensor<TenElemT, QNT> *BlockSiteTermsMulTwoSiteState(
 template<typename TenElemT, typename QNT>
 QLTensor<TenElemT, QNT> *SiteBlockTermsMulTwoSiteState(
     const SiteBlockHamiltonianTermGroup<QLTensor<TenElemT, QNT>> &site_blk_terms,
-    const QLTensor<TenElemT, QNT> *res_from_blk_site_multi
+    QLTensor<TenElemT, QNT> *res_from_blk_site_multi
 ) {
   using TenT = QLTensor<TenElemT, QNT>;
   TenT *res = new TenT();

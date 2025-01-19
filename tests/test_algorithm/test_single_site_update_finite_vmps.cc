@@ -4,7 +4,7 @@
 *         Rongyang Sun <sun-rongyang@outlook.com>
 * Creation Date: 2021-06-30
 *
-* Description: GraceQ/mps2 project. Unittest for single site algorithm.
+* Description: QuantumLiquids/MPS project. Unittest for single site algorithm.
 */
 
 #include "gtest/gtest.h"

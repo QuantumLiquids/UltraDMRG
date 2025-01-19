@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2021/11/2
 *
-* Description: GraceQ/mps2 project. Unittest for two site finite TDVP algorithm.
+* Description: QuantumLiquids/MPS project. Unittest for two site finite TDVP algorithm.
 */
 
 #include "qlten/qlten.h"

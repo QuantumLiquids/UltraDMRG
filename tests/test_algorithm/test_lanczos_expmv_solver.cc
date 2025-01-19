@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>>
 * Creation Date: 2021-10-13
 *
-* Description: GraceQ/mps2 project. Lanczos exponential of matrix times vector algorithm unittests.
+* Description: QuantumLiquids/MPS project. Lanczos exponential of matrix times vector algorithm unittests.
 */
 
 #include "gtest/gtest.h"

@@ -3,7 +3,7 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2023-05-11
 *
-* Description: GraceQ/mps2 project. Two-site update finite size DMRG with MPI Parallelization
+* Description: QuantumLiquids/MPS project. Two-site update finite size DMRG with MPI Parallelization
 */
 
 #ifndef QLMPS_ALGO_MPI_DMRG_DMRG_MPI_H

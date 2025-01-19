@@ -103,7 +103,7 @@ DMRGExecutor<TenElemT, QNT>::DMRGExecutor(
 
 /**
 Function to perform Finite size DMRG.
-Difference between this function with TwoSiteFiniteVMPSWithNoise is the input is matrix represent of MPO rather MPO.
+Difference between this function with TwoSiteFiniteVMPS is the input is matrix represent of MPO rather MPO.
 
 @note The input MPS will be considered an empty one.
 @note The canonical center of input MPS should be set at ???
