@@ -46,19 +46,19 @@ Function to perform two-site update finite vMPS algorithm with MPI parallelizati
   Using the API in the following way:
   The starting point of `main()` should look like
   ```
-      MPI_Init(..)
-      MPI_Comm comm =     MPI_Comm_rank;
+      MPI_Init(nullptr, nullptr)
+      MPI_Comm comm = MPI_COMM_WORLD;
   ```
 
   ```
-    double e0 = TwoSiteFiniteVMPSWithNoise(mps, mpo, sweep_params, comm);
+    double e0 = TwoSiteFiniteVMPS(mps, mpo, sweep_params, comm);
   ```
-  However, except `comm`, variables are only valid in master processor,
+  However, except `comm`, variables are only need to be valid in master processor,
   inputs of other processor(s) can be
   arbitrary (Of course the types should be right). Outputs of slave(s)
   are all 0.0. 
 
-  @note  The input MPS will be considered an empty one.
+  @note  The input MPS is supposed to be empty.
          The true data has be writed into disk.
   @note  The canonical center of input MPS should be set <=left_boundary+1.
         The canonical center of output MPS will move to left_boundary+1.

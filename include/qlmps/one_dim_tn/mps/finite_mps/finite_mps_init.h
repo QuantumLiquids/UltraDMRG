@@ -14,7 +14,7 @@
 #ifdef Release
 #define NDEBUG
 #endif
-#include <assert.h>
+#include <cassert>
 
 namespace qlmps {
 using namespace qlten;

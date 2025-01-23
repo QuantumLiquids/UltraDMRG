@@ -22,7 +22,7 @@
 #ifdef Release
 #define NDEBUG
 #endif
-#include <assert.h>     // assert
+#include <cassert>     // assert
 
 namespace qlmps {
 using namespace qlten;
@@ -106,6 +106,15 @@ class FiniteMPS : public MPS<TenElemT, QNT> {
     return DuoVector<LocalTenT>::operator()(idx);
   }
 
+  using MPS<TenElemT, QNT>::LoadTen;
+  using MPS<TenElemT, QNT>::DumpTen;
+  void LoadTen(const std::string &mps_path, const size_t idx) {
+    this->LoadTen(idx, GenMPSTenName(mps_path, idx));
+  }
+
+  void DumpTen(const std::string &mps_path, const size_t idx) {
+    this->DumpTen(idx, GenMPSTenName(mps_path, idx));
+  }
   // MPS global operations, that means all the tensors should in memory when calling these functions.
   void Centralize(const int);
 

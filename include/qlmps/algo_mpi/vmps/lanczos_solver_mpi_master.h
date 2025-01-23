@@ -290,8 +290,6 @@ QLTEN_Double master_two_site_eff_ham_mul_state(
                       [&task_difficuty](size_t task1, size_t task2) {
                         return task_difficuty[task1] > task_difficuty[task2];
                       });
-    //TODO: add support for multithread, note mpi::environment env( mt::multiple ) outside
-    //      Also note omp order, maybe need non-block communication
     for (size_t i = 0; i < task_size; i++) {
       if (i == slave_size) { //when arraged the most large slave_size jobs, sort the other work
         std::sort(arraging_tasks.begin() + slave_size,

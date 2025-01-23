@@ -75,7 +75,7 @@ inline void EXPECT_COMPLEX_EQ(
 
 inline void RemoveFolder(const std::string &folder_path) {
   std::string command = "rm -rf " + folder_path;
-  system(command.c_str());
+  std::system(command.c_str());
 }
 
 // Helpers

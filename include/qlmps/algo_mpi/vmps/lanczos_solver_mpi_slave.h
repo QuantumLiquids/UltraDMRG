@@ -97,7 +97,7 @@ void slave_two_site_eff_ham_mul_state(
   if (worker_rank > task_num) {
     //no task, happy~
 #ifdef QLMPS_MPI_TIMING_MODE
-    std::cout << "Slave has done task_count = " << task_count << std::endl;
+    std::cout << "worker " << worker_rank << " has done task_count = " << task_count << std::endl;
 #endif
     delete state;
     return;
@@ -105,9 +105,9 @@ void slave_two_site_eff_ham_mul_state(
   // slave_prepare_timer.PrintElapsed();
   //$1
 #ifdef QLMPS_MPI_TIMING_MODE
-  Timer salve_communication_timer(" slave "+std::to_string(worker_rank) +"'s communication");
+  Timer salve_communication_timer("worker " + std::to_string(worker_rank) + "'s communication");
   salve_communication_timer.Suspend();
-  Timer slave_work_timer(" slave "+ std::to_string(worker_rank) +"'s work");
+  Timer slave_work_timer("worker " + std::to_string(worker_rank) + "'s work");
 #endif
   //first task
   size_t task = worker_rank - 1;
@@ -182,7 +182,7 @@ void slave_two_site_eff_ham_mul_state(
 #ifdef QLMPS_MPI_TIMING_MODE
   slave_work_timer.PrintElapsed();
   salve_communication_timer.PrintElapsed();
-  std::cout << "Slave " << worker_rank<< " has done task_count = " << task_count << std::endl;
+  std::cout << "Slave " << worker_rank << " has done task_count = " << task_count << std::endl;
 #endif
   delete state;
   size_t all_final_signal;

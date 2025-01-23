@@ -144,7 +144,6 @@ inline QLTensor<TenElemT, QNT> *MasterGrowRightEnvironment(
   for (size_t j = 0; j < task_size; j++) {
     res_list.push_back(res_shell);
   }
-  std::cout << " Master : task_size, worker_size" << task_size << "," << worker_size << std::endl;
   MPI_Barrier(comm);
   if (worker_size < task_size) {
     // workers will firstly be accomplished the first `worker_save` tasks according their rank respectively.
@@ -174,9 +173,7 @@ inline QLTensor<TenElemT, QNT> *MasterGrowRightEnvironment(
     size_t final_signal = FinalSignal(task_size);
     for (size_t i = task_size - worker_size; i < task_size; i++) {
       auto &bsdt = res_list[i].GetBlkSparDataTen();
-      std::cout << "master i : " << i << std::endl;
       MPI_Status status = bsdt.MPI_Recv(comm, MPI_ANY_SOURCE, MPI_ANY_TAG);
-      std::cout << "master get here i : " << i << std::endl;
       hp_numeric::MPI_Send(final_signal, status.MPI_SOURCE, TaskTag(status.MPI_SOURCE), comm);
     }
   } else {
