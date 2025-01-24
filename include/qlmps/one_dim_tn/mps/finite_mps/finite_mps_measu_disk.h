@@ -123,6 +123,21 @@ MeasuResSet<TenElemT> MeasureOneSiteOp(
   return measu_res_set;
 }
 
+template<typename TenElemT, typename QNT>
+MeasuResSet<TenElemT> MeasureOneSiteOp(
+    FiniteMPS<TenElemT, QNT> &mps,
+    std::string mps_path,
+    const std::vector<QLTensor<TenElemT, QNT>> &ops,
+    const std::vector<std::string> &res_file_basenames
+) {
+  size_t N = mps.size();
+  std::vector<size_t> sites(N);
+  for (size_t i = 0; i < N; i++) {
+    sites[i] = i;
+  }
+  return MeasureOneSiteOp(mps, mps_path, ops, sites, res_file_basenames);
+}
+
 /**
 * @brief Measures two-site correlation function with the fix reference site on a uniform Hilbert space.
 *
