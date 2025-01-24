@@ -24,6 +24,19 @@ inline void PrintDiskMeasureHint() {
   return;
 }
 
+template<typename TenElemT, typename QNT>
+void CtrctMidTen(
+    FiniteMPS<TenElemT, QNT> &mps,
+    const size_t site,
+    const QLTensor<TenElemT, QNT> &op,
+    const QLTensor<TenElemT, QNT> &id_op,
+    QLTensor<TenElemT, QNT> *&t,
+    const std::string &mps_path) {
+  mps.LoadTen(mps_path, site);
+  CtrctMidTen(mps, site, op, id_op, t);
+  mps.dealloc(site);
+}
+
 /**
  * @brief Measures a single one-site operator across all sites of a finite MPS (Matrix Product State)
  * with a uniform Hilbert space.
@@ -139,7 +152,7 @@ MeasuResSet<TenElemT> MeasureOneSiteOp(
 }
 
 /**
-* @brief Measures two-site correlation function with the fix reference site on a uniform Hilbert space.
+* @brief Measures two-site correlation function with the fixed reference site on a uniform Hilbert space.
 *
 * This function is optimized for memory efficiency. It requires the input MPS to be initialized as an
 * empty MPS, with the data stored on disk. The canonical center of the MPS is assumed to be at site 0.
@@ -176,24 +189,8 @@ MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
 
   //Contract mps[site1]*phys_ops1*dag(mps[site1])
   auto id_op_set = mps.GetSitesInfo().id_ops;
-  //Contract on site1
-  std::vector<size_t> head_mps_ten_ctrct_axes1{1};
-  std::vector<size_t> head_mps_ten_ctrct_axes2{0, 2};
-  std::vector<size_t> head_mps_ten_ctrct_axes3{0, 1};
-  QLTensor<TenElemT, QNT> temp_ten0;
-  auto ptemp_ten = new QLTensor<TenElemT, QNT>;//TODO: delete
-  Contract(
-      &mps[site1], &phys_ops1,
-      {{1}, {0}},
-      &temp_ten0
-  );
-  QLTensor<TenElemT, QNT> mps_ten_dag = Dag(mps[site1]);
-  Contract(
-      &temp_ten0, &mps_ten_dag,
-      {head_mps_ten_ctrct_axes2, head_mps_ten_ctrct_axes3},
-      ptemp_ten
-  );
-  mps_ten_dag.GetBlkSparDataTen().Clear();//Save memory
+  auto ptemp_ten = new QLTensor<TenElemT, QNT>;
+  *ptemp_ten = ContractHeadSite(mps[site1], phys_ops1);
   mps.dealloc(site1);
 
   size_t eated_site = site1; //the last site has been contracted
@@ -202,33 +199,20 @@ MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
     const size_t site2 = site2_set[event];
     while (eated_site < site2 - 1) {
       size_t eating_site = eated_site + 1;
-      mps.LoadTen(eating_site, GenMPSTenName(mps_path, eating_site));
       //Contract ptemp_ten*mps[eating_site]*dag(mps[eating_site])
       if (inst_op == QLTensor<TenElemT, QNT>()) {
-        CtrctMidTen(mps, eating_site, id_op_set[eating_site], id_op_set[eating_site], ptemp_ten);
+        CtrctMidTen(mps, eating_site, id_op_set[eating_site], id_op_set[eating_site], ptemp_ten, mps_path);
       } else {
-        CtrctMidTen(mps, eating_site, inst_op, id_op_set[eating_site], ptemp_ten);
+        CtrctMidTen(mps, eating_site, inst_op, id_op_set[eating_site], ptemp_ten, mps_path);
       }
       eated_site = eating_site;
-      mps.dealloc(eated_site);
     }
 
     //now site2-1 has been eaten.
     mps.LoadTen(site2, GenMPSTenName(mps_path, site2));
     //Contract ptemp_ten*mps[site2]*ops2*dag(mps[site2]) gives the expected value.
-    std::vector<size_t> tail_mps_ten_ctrct_axes1{0, 1, 2};
-    std::vector<size_t> tail_mps_ten_ctrct_axes2{2, 0, 1};
-    QLTensor<TenElemT, QNT> temp_ten2, temp_ten3, res_ten;
-    Contract(&mps[site2], ptemp_ten, {{0}, {0}}, &temp_ten2);
-    Contract(&temp_ten2, &phys_ops2, {{0}, {0}}, &temp_ten3);
-    mps_ten_dag = Dag(mps[site2]);
-    Contract(
-        &temp_ten3, &mps_ten_dag,
-        {tail_mps_ten_ctrct_axes1, tail_mps_ten_ctrct_axes2},
-        &res_ten
-    );
-    measure_res[event] = MeasuResElem<TenElemT>({site1, site2}, res_ten());
-
+    auto avg = ContractTailSite(mps[site2], phys_ops2, *ptemp_ten);
+    measure_res[event] = MeasuResElem<TenElemT>({site1, site2}, avg);
     mps.dealloc(site2);//according now code this site2 will load again in next loop. This may be optimized one day.
   }
   delete ptemp_ten;
@@ -251,6 +235,126 @@ MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
     site2_set.push_back(site);
   }
   return MeasureTwoSiteOpGroup(mps, mps_path, phys_ops1, phys_ops2, ref_site, site2_set, inst_op);
+}
+
+///< Struct used to record the site of temp_ten
+template<typename TenElemT, typename QNT>
+struct LeftTempTen {
+  using TenT = QLTensor<TenElemT, QNT>;
+  size_t idx; // The last site been contracted
+  TenT *ptemp_ten;
+
+  LeftTempTen(const size_t &idx, const TenT &temp_ten) :
+      idx(idx) {
+    ptemp_ten = new TenT(temp_ten);
+  }
+  ~LeftTempTen() {
+    delete ptemp_ten;
+  }
+
+  void MoveTo(FiniteMPS<TenElemT, QNT> &mps,
+              size_t site,
+              std::string mps_path) {
+    assert(site >= idx);
+    auto id_op_set = mps.GetSitesInfo().id_ops;
+    for (size_t mid_site = idx + 1; mid_site <= site; mid_site++) {
+      if (mps(mid_site) == nullptr) {// mps ten has possibly been loaded before in measuring the 4-point functions.
+        mps.LoadTen(mps_path, mid_site);
+      }
+      CtrctMidTen(mps, mid_site, id_op_set[mid_site], id_op_set[mid_site], ptemp_ten);
+      mps.dealloc(mid_site);
+    }
+    idx = site;
+  }
+};
+
+/**
+ * TODO: TEST
+ * @brief Measures four-site correlation function with the fixed reference two sites on a uniform Hilbert space.
+ *
+ * The typical using scenario is the superconductor correlations (not on-site pair),
+ * with the reference sites of the pairing-field are fixed and target site travel throughout the lattice.
+ *
+ * This function is optimized for memory efficiency. It requires the input MPS to be initialized as an
+ * empty MPS, with the data stored on disk. The canonical center of the MPS is assumed to be at site 0.
+ * During and after the measurement process, the data on disk remains unchanged.
+ *
+ * @param mps The MPS to be measured. It must be initialized as an empty MPS before calling this function.
+ * @param mps_path The file path to the stored MPS data on disk, which will be loaded for measurement.
+ * @param phys_ops
+ * @param ref_sites
+ * @param target_sites_set we assume the idx of target site > the idx reference site
+ * @param inst_op insertion operator.
+ *
+ * @return A `MeasuRes` object containing the results of the measurement.
+ */
+template<typename TenElemT, typename QNT>
+MeasuRes<TenElemT> MeasureFourSiteOpGroup(
+    FiniteMPS<TenElemT, QNT> &mps,
+    const std::string &mps_path,
+    const std::array<QLTensor<TenElemT, QNT>, 4> &phys_ops,
+    const std::array<size_t, 2> &ref_sites,
+    std::vector<std::array<size_t, 2>> target_sites_set,
+    QLTensor<TenElemT, QNT> inst_op = QLTensor<TenElemT, QNT>()
+) {
+  assert(mps.empty());
+  using Tensor = QLTensor<TenElemT, QNT>;
+  std::sort(target_sites_set.begin(), target_sites_set.end(),
+            [](const std::array<size_t, 2> &a, const std::array<size_t, 2> &b) {
+              return a[0] < b[0];
+            });
+  MeasuRes<TenElemT> measure_res(target_sites_set.size());
+
+  auto id_op_set = mps.GetSitesInfo().id_ops;
+  if (inst_op == Tensor()) {
+    inst_op = id_op_set[0]; // Uniform hilbert space
+  }
+
+  //Move center to ref_sites[0]
+  mps.LoadTen(0, GenMPSTenName(mps_path, 0));
+  for (size_t j = 0; j < ref_sites[0]; j++) {
+    mps.LoadTen(j + 1, GenMPSTenName(mps_path, j + 1));
+    mps.LeftCanonicalizeTen(j);
+    mps.dealloc(j);
+  }
+
+  auto ptemp_ten = new QLTensor<TenElemT, QNT>;
+  *ptemp_ten = ContractHeadSite(mps[ref_sites[0]], phys_ops[0]);
+  mps.dealloc(ref_sites[0]);
+
+  for (size_t i = ref_sites[0] + 1; i < ref_sites[1]; ++i) {
+    CtrctMidTen(mps, i, inst_op, id_op_set[i], ptemp_ten, mps_path);
+  }
+  CtrctMidTen(mps, ref_sites[1], phys_ops[1], id_op_set[ref_sites[1]], ptemp_ten, mps_path);
+  assert(mps.empty());
+
+  LeftTempTen temp_struct = LeftTempTen(ref_sites[1], *ptemp_ten);
+  delete ptemp_ten;
+  for (size_t event = 0; event < target_sites_set.size(); event++) {
+    size_t target_site0 = target_sites_set[event][0];
+    temp_struct.MoveTo(mps, target_site0 - 1, mps_path);
+
+    ptemp_ten = new Tensor(*(temp_struct.ptemp_ten));// deep copy
+    mps.LoadTen(mps_path, target_site0);
+    CtrctMidTen(mps, target_site0, phys_ops[2], id_op_set[target_site0], ptemp_ten);
+    size_t target_site1 = target_sites_set[event][1];
+    for (size_t i = target_site0 + 1; i < target_site1; ++i) {
+      mps.LoadTen(mps_path, i);
+      CtrctMidTen(mps, i, inst_op, id_op_set[i], ptemp_ten);
+    }
+    // Deal with tail tensor.
+    mps.LoadTen(target_site1, GenMPSTenName(mps_path, target_site1));
+    auto avg = ContractTailSite(mps[target_site1], phys_ops[3], *ptemp_ten);
+    delete ptemp_ten;
+    measure_res[event] = MeasuResElem<TenElemT>({ref_sites[0], ref_sites[1], target_site0, target_site1},
+                                                avg);
+  }
+  //clean the data
+  for (size_t i = target_sites_set.back()[0]; i <= target_sites_set.back()[1]; i++) {
+    mps.dealloc(i);
+  }
+  assert(mps.empty());
+  return measure_res;
 }
 
 }//qlmps

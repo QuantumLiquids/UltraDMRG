@@ -430,6 +430,74 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
   return MultiSiteOpAvg(mps, phys_ops, inst_ops_set, sites);
 }
 
+/**
+ * @return
+ *  temp_ten :
+ *
+ * |----Dag(mps_ten)---
+ * |     |
+ * |     op
+ * |     |
+ * |----mps_ten---
+ *
+ */
+template<typename TenElemT, typename QNT>
+QLTensor<TenElemT, QNT> ContractHeadSite(const QLTensor<TenElemT, QNT> &mps_ten,
+                                         const QLTensor<TenElemT, QNT> &op) {
+  QLTensor<TenElemT, QNT> temp_ten, temp_ten0;
+
+  std::vector<size_t> head_mps_ten_ctrct_axes1{1};
+  std::vector<size_t> head_mps_ten_ctrct_axes2{0, 2};
+  std::vector<size_t> head_mps_ten_ctrct_axes3{0, 1};
+
+  Contract(
+      &mps_ten, &op,
+      {head_mps_ten_ctrct_axes1, {0}},
+      &temp_ten0
+  );
+
+  auto mps_ten_dag = Dag(mps_ten);
+
+  Contract(
+      &temp_ten0, &mps_ten_dag,
+      {head_mps_ten_ctrct_axes2, head_mps_ten_ctrct_axes3},
+      &temp_ten
+  );
+  return temp_ten;
+}
+
+/**
+ * @return
+ *  expectation value :
+ *
+ *   |-------Dag(mps_ten)
+ *   |         |
+ * temp_ten    op
+ *   |         |
+ *   |-------mps_ten
+ *
+ */
+template<typename TenElemT, typename QNT>
+TenElemT ContractTailSite(
+    const QLTensor<TenElemT, QNT> &mps_ten,
+    const QLTensor<TenElemT, QNT> &op,
+    const QLTensor<TenElemT, QNT> &temp_ten
+) {
+  std::vector<size_t> tail_mps_ten_ctrct_axes1{0, 1, 2};
+  std::vector<size_t> tail_mps_ten_ctrct_axes2{2, 0, 1};
+  QLTensor<TenElemT, QNT> temp_ten2, temp_ten3, res_ten;
+  Contract(&mps_ten, &temp_ten, {{0}, {0}}, &temp_ten2);
+  Contract(&temp_ten2, &op, {{0}, {0}}, &temp_ten3);
+  auto mps_ten_dag = Dag(mps_ten);
+  Contract(
+      &temp_ten3, &mps_ten_dag,
+      {tail_mps_ten_ctrct_axes1, tail_mps_ten_ctrct_axes2},
+      &res_ten
+  );
+  TenElemT avg = res_ten();
+  return avg;
+}
+
 template<typename TenElemT, typename QNT>
 TenElemT OpsVecAvg(
     const FiniteMPS<TenElemT, QNT> &mps,      // Has been centralized to head_site
@@ -439,22 +507,8 @@ TenElemT OpsVecAvg(
 ) {
   auto id_op_set = mps.GetSitesInfo().id_ops;
   // Deal with head tensor.
-  std::vector<size_t> head_mps_ten_ctrct_axes1{1};
-  std::vector<size_t> head_mps_ten_ctrct_axes2{0, 2};
-  std::vector<size_t> head_mps_ten_ctrct_axes3{0, 1};
-  QLTensor<TenElemT, QNT> temp_ten0;
   auto ptemp_ten = new QLTensor<TenElemT, QNT>;
-  Contract(
-      &mps[head_site], &ops[0],
-      {head_mps_ten_ctrct_axes1, {0}},
-      &temp_ten0
-  );
-  auto mps_ten_dag = Dag(mps[head_site]);
-  Contract(
-      &temp_ten0, &mps_ten_dag,
-      {head_mps_ten_ctrct_axes2, head_mps_ten_ctrct_axes3},
-      ptemp_ten
-  );
+  *ptemp_ten = ContractHeadSite(mps[head_site], ops[0]);
 
   // Deal with middle tensors.
   assert(ops.size() == (tail_site - head_site + 1));
@@ -463,20 +517,9 @@ TenElemT OpsVecAvg(
   }
 
   // Deal with tail tensor.
-  std::vector<size_t> tail_mps_ten_ctrct_axes1{0, 1, 2};
-  std::vector<size_t> tail_mps_ten_ctrct_axes2{2, 0, 1};
-  QLTensor<TenElemT, QNT> temp_ten2, temp_ten3, res_ten;
-  Contract(&mps[tail_site], ptemp_ten, {{0}, {0}}, &temp_ten2);
+  auto avg = ContractTailSite(mps[tail_site], ops.back(), *ptemp_ten);
   delete ptemp_ten;
-  Contract(&temp_ten2, &ops.back(), {{0}, {0}}, &temp_ten3);
-  mps_ten_dag = std::move(Dag(mps[tail_site]));
-  Contract(
-      &temp_ten3, &mps_ten_dag,
-      {tail_mps_ten_ctrct_axes1, tail_mps_ten_ctrct_axes2},
-      &res_ten
-  );
-
-  return res_ten();
+  return avg;
 }
 
 template<typename TenElemT, typename QNT>
