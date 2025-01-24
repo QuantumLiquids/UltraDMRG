@@ -4,7 +4,8 @@
 * Author: Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2019-10-08 22:18
 *
-* Description: QuantumLiquids/UltraDMRG project. Finite MPS observation measurements.
+* Description: QuantumLiquids/UltraDMRG project.
+*              Finite MPS observation measurements. The MPS data should all be loaded in memory before the measurement.
 */
 
 /**
@@ -14,7 +15,6 @@
 #ifndef QLMPS_ONE_DIM_TN_MPS_FINITE_MPS_FINITE_MPS_MEASU_H
 #define QLMPS_ONE_DIM_TN_MPS_FINITE_MPS_FINITE_MPS_MEASU_H
 
-
 #include "qlmps/one_dim_tn/mps/finite_mps/finite_mps.h"    // FiniteMPS
 #include "qlten/qlten.h"
 
@@ -23,28 +23,25 @@
 #include <iomanip>
 #include <algorithm>
 
-
 namespace qlmps {
 using namespace qlten;
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 using TenVV = std::vector<std::vector<QLTensor<TenElemT, QNT>>>;
 
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 using TenVVV = std::vector<std::vector<std::vector<QLTensor<TenElemT, QNT>>>>;
-
 
 /**
 Measurement result for a set specific operator(s).
 
 @tparam AvgT Data type of the measurement, real or complex.
 */
-template <typename AvgT>
+template<typename AvgT>
 struct MeasuResElem {
   MeasuResElem(void) = default;
   MeasuResElem(const std::vector<size_t> &sites, const AvgT avg) :
-    sites(sites), avg(avg) {}
+      sites(sites), avg(avg) {}
 
   std::vector<size_t> sites;  ///< Site indexes of the operators.
   AvgT avg;                 ///< average of the observation.
@@ -53,20 +50,19 @@ struct MeasuResElem {
 /**
 A list of measurement results.
 */
-template <typename AvgT>
+template<typename AvgT>
 using MeasuRes = std::vector<MeasuResElem<AvgT>>;
 
-template <typename AvgT>
+template<typename AvgT>
 using MeasuResSet = std::vector<MeasuRes<AvgT>>;
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> OneSiteOpAvg(
     const QLTensor<TenElemT, QNT> &, const QLTensor<TenElemT, QNT> &,
     const size_t, const size_t
 );
 
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> MultiSiteOpAvg(
     const FiniteMPS<TenElemT, QNT> &,
     const std::vector<QLTensor<TenElemT, QNT>> &,
@@ -74,7 +70,7 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
     const std::vector<size_t> &
 );
 
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> MultiSiteOpAvg(
     const FiniteMPS<TenElemT, QNT> &,
     const std::vector<QLTensor<TenElemT, QNT>> &,
@@ -82,7 +78,7 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
     const std::vector<size_t> &
 );
 
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 TenElemT OpsVecAvg(
     const FiniteMPS<TenElemT, QNT> &,
     const std::vector<QLTensor<TenElemT, QNT>> &,
@@ -90,41 +86,37 @@ TenElemT OpsVecAvg(
     const size_t
 );
 
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 void CtrctMidTen(
     const FiniteMPS<TenElemT, QNT> &, const size_t,
     const QLTensor<TenElemT, QNT> &, const QLTensor<TenElemT, QNT> &,
-    QLTensor<TenElemT, QNT> * &
+    QLTensor<TenElemT, QNT> *&
 );
 
-template <typename AvgT>
+template<typename AvgT>
 void DumpMeasuRes(const MeasuRes<AvgT> &, const std::string &);
-
 
 // Helpers.
 inline bool IsOrderKept(const std::vector<size_t> &sites) {
-  for (size_t i = 0; i < sites.size() - 1; ++i){
-    if (sites[i] > sites[i+1]) { return false; }
+  for (size_t i = 0; i < sites.size() - 1; ++i) {
+    if (sites[i] > sites[i + 1]) { return false; }
   }
   return true;
 }
 
-
-template <typename T>
+template<typename T>
 inline void DumpSites(std::ofstream &ofs, const std::vector<T> &sites) {
   ofs << "[";
-  for (auto it = sites.begin(); it != sites.end()-1; ++it) {
+  for (auto it = sites.begin(); it != sites.end() - 1; ++it) {
     ofs << *it << ", ";
   }
   ofs << sites.back();
   ofs << "], ";
 }
 
-
 inline void DumpAvgVal(std::ofstream &ofs, const QLTEN_Double avg) {
   ofs << std::setw(14) << std::setprecision(12) << avg;
 }
-
 
 inline void DumpAvgVal(std::ofstream &ofs, const QLTEN_Complex avg) {
   ofs << "[";
@@ -146,7 +138,7 @@ Measure a single one-site operator on each sites of the finite MPS.
 @param op The single one-site operator.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureOneSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const QLTensor<TenElemT, QNT> &op,
@@ -162,7 +154,6 @@ MeasuRes<TenElemT> MeasureOneSiteOp(
   return measu_res;
 }
 
-
 /**
 Measure a list of one-site operators on each sites of the finite MPS.
 
@@ -173,7 +164,7 @@ Measure a list of one-site operators on each sites of the finite MPS.
 @param ops A list of one-site operators.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResSet<TenElemT> MeasureOneSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const std::vector<QLTensor<TenElemT, QNT>> &ops,
@@ -213,7 +204,7 @@ The insert operators \f$O_{k}\f$ can be different for each measure event.
        for each measure event. Its size defines the number of measure events.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureTwoSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const std::vector<QLTensor<TenElemT, QNT>> &phys_ops,
@@ -244,7 +235,6 @@ MeasuRes<TenElemT> MeasureTwoSiteOp(
   );
 }
 
-
 /**
 Measure a two-site operator, for example, \f$\langle A_{i} O_{i+1} \cdots O_{j-1} B_{j} \rangle\f$.
 The insert operators \f$O_{k}\f$ must be same at each sites and for each measure event.
@@ -257,7 +247,7 @@ The insert operators \f$O_{k}\f$ must be same at each sites and for each measure
        for each measure event. Its size defines the number of measure events.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureTwoSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const std::vector<QLTensor<TenElemT, QNT>> &phys_ops,
@@ -297,7 +287,7 @@ should be defined by the user in each measure events.
        for each measure event. Its size defines the number of measure events.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureMultiSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const TenVV<TenElemT, QNT> &phys_ops_set,
@@ -320,7 +310,6 @@ MeasuRes<TenElemT> MeasureMultiSiteOp(
   return measu_res;
 }
 
-
 /**
 Measure a multi-site operator, for example, \f$\langle A_{i} O^{[m]}_{i+1} 
 \cdots O^{[m]}_{j-1} B_{j} O^{[n]}_{j+1} \cdots O^{[n]}_{k-1} C_{k} 
@@ -338,7 +327,7 @@ operators are the same.
        for each measure event. Its size defines the number of measure events.
 @param res_file_basename The basename of the output file.
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureMultiSiteOp(
     FiniteMPS<TenElemT, QNT> &mps,
     const TenVV<TenElemT, QNT> &phys_ops_set,
@@ -361,19 +350,18 @@ MeasuRes<TenElemT> MeasureMultiSiteOp(
   return measu_res;
 }
 
-
 // Averages.
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> OneSiteOpAvg(
     const QLTensor<TenElemT, QNT> &cent_ten,
     const QLTensor<TenElemT, QNT> &op,
     const size_t site,
     const size_t N
 ) {
-  std::vector<size_t> ta_ctrct_axes1 {1};
-  std::vector<size_t> tb_ctrct_axes1 {0};
-  std::vector<size_t> ta_ctrct_axes2 {0, 2, 1};
-  std::vector<size_t> tb_ctrct_axes2 {0, 1, 2};
+  std::vector<size_t> ta_ctrct_axes1{1};
+  std::vector<size_t> tb_ctrct_axes1{0};
+  std::vector<size_t> ta_ctrct_axes2{0, 2, 1};
+  std::vector<size_t> tb_ctrct_axes2{0, 1, 2};
   QLTensor<TenElemT, QNT> temp_ten, res_ten;
   Contract(&cent_ten, &op, {ta_ctrct_axes1, tb_ctrct_axes1}, &temp_ten);
   auto cent_ten_dag = Dag(cent_ten);
@@ -386,8 +374,7 @@ MeasuResElem<TenElemT> OneSiteOpAvg(
   return MeasuResElem<TenElemT>({site}, avg);
 }
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> MultiSiteOpAvg(
     const FiniteMPS<TenElemT, QNT> &mps,
     const std::vector<QLTensor<TenElemT, QNT>> &phys_ops,
@@ -420,8 +407,7 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
   return MeasuResElem<TenElemT>(sites, avg);
 }
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 MeasuResElem<TenElemT> MultiSiteOpAvg(
     FiniteMPS<TenElemT, QNT> &mps,
     const std::vector<QLTensor<TenElemT, QNT>> &phys_ops,
@@ -435,7 +421,7 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
   for (size_t i = 0; i < inst_op_num; ++i) {
     inst_ops_set.push_back(
         std::vector<QLTensor<TenElemT, QNT>>(
-            sites[i+1] - sites[i] - 1,
+            sites[i + 1] - sites[i] - 1,
             inst_ops[i]
         )
     );
@@ -444,8 +430,7 @@ MeasuResElem<TenElemT> MultiSiteOpAvg(
   return MultiSiteOpAvg(mps, phys_ops, inst_ops_set, sites);
 }
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 TenElemT OpsVecAvg(
     const FiniteMPS<TenElemT, QNT> &mps,      // Has been centralized to head_site
     const std::vector<QLTensor<TenElemT, QNT>> &ops,
@@ -454,9 +439,9 @@ TenElemT OpsVecAvg(
 ) {
   auto id_op_set = mps.GetSitesInfo().id_ops;
   // Deal with head tensor.
-  std::vector<size_t> head_mps_ten_ctrct_axes1 {1};
-  std::vector<size_t> head_mps_ten_ctrct_axes2 {0, 2};
-  std::vector<size_t> head_mps_ten_ctrct_axes3 {0, 1};
+  std::vector<size_t> head_mps_ten_ctrct_axes1{1};
+  std::vector<size_t> head_mps_ten_ctrct_axes2{0, 2};
+  std::vector<size_t> head_mps_ten_ctrct_axes3{0, 1};
   QLTensor<TenElemT, QNT> temp_ten0;
   auto ptemp_ten = new QLTensor<TenElemT, QNT>;
   Contract(
@@ -478,8 +463,8 @@ TenElemT OpsVecAvg(
   }
 
   // Deal with tail tensor.
-  std::vector<size_t> tail_mps_ten_ctrct_axes1 {0, 1, 2};
-  std::vector<size_t> tail_mps_ten_ctrct_axes2 {2, 0, 1};
+  std::vector<size_t> tail_mps_ten_ctrct_axes1{0, 1, 2};
+  std::vector<size_t> tail_mps_ten_ctrct_axes2{2, 0, 1};
   QLTensor<TenElemT, QNT> temp_ten2, temp_ten3, res_ten;
   Contract(&mps[tail_site], ptemp_ten, {{0}, {0}}, &temp_ten2);
   delete ptemp_ten;
@@ -494,14 +479,13 @@ TenElemT OpsVecAvg(
   return res_ten();
 }
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 void CtrctMidTen(
     const FiniteMPS<TenElemT, QNT> &mps,
     const size_t site,
     const QLTensor<TenElemT, QNT> &op,
     const QLTensor<TenElemT, QNT> &id_op,
-    QLTensor<TenElemT, QNT> * &t) {
+    QLTensor<TenElemT, QNT> *&t) {
   using Tensor = QLTensor<TenElemT, QNT>;
   if (op == id_op) {
     Tensor temp_ten;
@@ -521,9 +505,8 @@ void CtrctMidTen(
   }
 }
 
-
 // Data dump.
-template <typename AvgT>
+template<typename AvgT>
 void DumpMeasuRes(
     const MeasuRes<AvgT> &res,
     const std::string &basename
@@ -538,9 +521,10 @@ void DumpMeasuRes(
 
     ofs << "  [";
 
-    DumpSites(ofs, measu_res_elem.sites); DumpAvgVal(ofs, measu_res_elem.avg);
+    DumpSites(ofs, measu_res_elem.sites);
+    DumpAvgVal(ofs, measu_res_elem.avg);
 
-    if (it == res.end()-1) {
+    if (it == res.end() - 1) {
       ofs << "]\n";
     } else {
       ofs << "],\n";

@@ -15,7 +15,7 @@
 #include "qlmps/one_dim_tn/mps/finite_mps/finite_mps.h"          // FiniteMPS
 #include "qlmps/utilities.h"                                     // IsPathExist, CreatPath
 #include "lanczos_expmv_solver_impl.h"           // LanczosExpmvSolver
-#include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_measu.h"    // DumpSites, DumpAvgVal
+#include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_measu_memory.h"    // DumpSites, DumpAvgVal
 #include "qlmps/algorithm/vmps/two_site_update_finite_vmps_impl.h" //InitEnvs
 
 namespace qlmps {

@@ -42,6 +42,7 @@ class DMRGMPIMasterExecutor : public Executor {
       const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
   );
   double DMRGSweep_();
+  void DMRGPostProcess_();
 
   void LoadRelatedTensSweep_();
   void SetEffectiveHamiltonianTerms_();
@@ -134,6 +135,7 @@ void DMRGMPIMasterExecutor<TenElemT, QNT>::Execute() {
     std::cout << "\n";
   }
   mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
+  DMRGPostProcess_();
   MasterBroadcastOrder(program_final, rank_, comm_);
   SetStatus(ExecutorStatus::FINISH);
 }
@@ -162,6 +164,21 @@ double DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGSweep_() {
   }
   return e0_;
 }
+
+///< Move center from left_boundary_ + 1 to 0
+template<typename TenElemT, typename QNT>
+void DMRGMPIMasterExecutor<TenElemT, QNT>::DMRGPostProcess_() {
+  size_t center = left_boundary_ + 1;
+  mps_.LoadTen(sweep_params.mps_path, center);
+  for (size_t site = center; site > 0; site--) {
+    mps_.LoadTen(sweep_params.mps_path, site - 1);
+    mps_.RightCanonicalizeTen(site);
+    mps_.DumpTen(sweep_params.mps_path, site);
+  }
+  mps_.DumpTen(sweep_params.mps_path, 0);
+  std::cout << "Moved the center of MPS to 0." << std::endl;
+}
+
 template<typename TenElemT, typename QNT>
 double DMRGMPIMasterExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   Timer update_timer("two_site_dmrg_update");

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 /*
 * Author: Rongyang Sun <sun-rongyang@outlook.com>
+*         Hao-Xin Wang <wanghaoxin1996@gmail.com>
 * Creation Date: 2020-12-17 14:19
 *
 * Description: QuantumLiquids/UltraDMRG project. All staff for using matrix product state (MPS).
@@ -20,8 +21,8 @@
 // Finite MPS related
 #include "qlmps/one_dim_tn/mps/finite_mps/finite_mps.h"
 #include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_init.h"
-#include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_measu.h"
+#include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_measu_memory.h"
+#include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_measu_disk.h"
 #include "qlmps/one_dim_tn/mps/finite_mps/finite_mps_ops.h"
-
 
 #endif /* ifndef QLMPS_ONE_DIM_TN_MPS_ALL_H */
