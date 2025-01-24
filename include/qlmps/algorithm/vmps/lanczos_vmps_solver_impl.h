@@ -331,6 +331,11 @@ inline void TridiagGsSolver(
       n);     // TODO: Why can not use ldz???
   if (info != 0) {
     std::cout << stev_err_msg << info << ", n : " << n << std::endl;
+    if (info == -4) {
+      for (size_t i = 0; i < n; i++) {
+        std::cout << d[i] << std::endl;
+      }
+    }
     exit(1);
   }
   switch (jobz) {

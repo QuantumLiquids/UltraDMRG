@@ -54,6 +54,7 @@ class DMRGExecutor : public Executor {
  private:
   void DMRGInit_();
   double DMRGSweep_();
+  void DMRGPostProcess_();
 
   double LoadRelatedTensSweep_();
   void SetEffectiveHamiltonianTerms_();
@@ -102,13 +103,18 @@ DMRGExecutor<TenElemT, QNT>::DMRGExecutor(
 }
 
 /**
-Function to perform Finite size DMRG.
-Difference between this function with TwoSiteFiniteVMPS is the input is matrix represent of MPO rather MPO.
-
-@note The input MPS will be considered an empty one.
-@note The canonical center of input MPS should be set at ???
-@note The canonical center of output MPS is set at ???.
-*/
+ * Function to perform finite-size DMRG (Density Matrix Renormalization Group).
+ * This function aims to mimic the traditional DMRG workflow, i.e. renormalized operator terminology.
+ *
+ * ### Key Difference:
+ * Unlike `TwoSiteFiniteVMPS`, this function takes the matrix representation
+ * of the MPO as input, rather than the MPO itself.
+ *
+ * ### Notes:
+ * - The input MPS (Matrix Product State) is assumed to be empty, with data stored on disk.
+ * - The canonical center of the input MPS should be set near site 0.
+ * - The canonical center of the output MPS will be enforced to move to site 0.
+ */
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
@@ -125,9 +131,15 @@ void DMRGExecutor<TenElemT, QNT>::Execute() {
     std::cout << "\n";
   }
   mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
+  DMRGPostProcess_();
   SetStatus(ExecutorStatus::FINISH);
 }
 
+/**
+ * Center will be moved to left_boundary_ + 1 after the sweep
+ *
+ * @return The estimated energy
+ */
 template<typename TenElemT, typename QNT>
 double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   using TenT = QLTensor<TenElemT, QNT>;
@@ -392,6 +404,20 @@ double DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
   preprocessing_timer.PrintElapsed();
 #endif
   return op_mem_;
+}
+
+///< Move center from left_boundary_ + 1 to 0
+template<typename TenElemT, typename QNT>
+void DMRGExecutor<TenElemT, QNT>::DMRGPostProcess_() {
+  size_t center = left_boundary_ + 1;
+  mps_.LoadTen(sweep_params.mps_path, center);
+  for (size_t site = center; site > 0; site--) {
+    mps_.LoadTen(sweep_params.mps_path, site - 1);
+    mps_.RightCanonicalizeTen(site);
+    mps_.DumpTen(sweep_params.mps_path, site);
+  }
+  mps_.DumpTen(sweep_params.mps_path, 0);
+  std::cout << "Moved the center of MPS to 0." << std::endl;
 }
 
 template<typename TenElemT, typename QNT>
