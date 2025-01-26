@@ -124,7 +124,8 @@ class FiniteMPS : public MPS<TenElemT, QNT> {
 
   // MPS local operations. Only tensors near the target site are needed in memory.
   void LeftCanonicalizeTen(const size_t);
-  QLTensor<QLTEN_Double, QNT> RightCanonicalizeTen(const size_t);
+  // if use svd, return the singular value tensor; qr is faster
+  QLTensor<QLTEN_Double, QNT> RightCanonicalizeTen(const size_t, const bool use_svd = false);
 
   // Properties getter.
   /**
@@ -193,29 +194,30 @@ template<typename TenElemT, typename QNT>
 void FiniteMPS<TenElemT, QNT>::LeftCanonicalizeTen(const size_t site_idx) {
   assert(site_idx < this->size() - 1);
   size_t ldims(2);
-#ifndef USE_GPU
-  auto pq = new LocalTenT;
-  LocalTenT r;
-  QR((*this)(site_idx), ldims, Div((*this)[site_idx]), pq, &r);
-  delete (*this)(site_idx);
-  (*this)(site_idx) = pq;
-
   auto pnext_ten = new LocalTenT;
-  Contract(&r, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
-#else
-  auto pu = new LocalTenT;
-  QLTensor<QLTEN_Double, QNT> s;
-  LocalTenT vt;
-  auto qndiv = Div((*this)[site_idx]);
-  mock_qlten::SVD((*this)(site_idx), ldims, qndiv, pu, &s, &vt);
-  delete (*this)(site_idx);
-  (*this)(site_idx) = pu;
+  const bool use_qr = true;
+  if constexpr (use_qr) {
+    auto pq = new LocalTenT;
+    LocalTenT r;
+    QR((*this)(site_idx), ldims, Div((*this)[site_idx]), pq, &r);
+    delete (*this)(site_idx);
+    (*this)(site_idx) = pq;
 
-  LocalTenT temp_ten;
-  Contract(&s, &vt, {{1}, {0}}, &temp_ten);
-  auto pnext_ten = new LocalTenT;
-  Contract(&temp_ten, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
-#endif
+    Contract(&r, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
+  } else {
+    auto pu = new LocalTenT;
+    QLTensor<QLTEN_Double, QNT> s;
+    LocalTenT vt;
+    auto qndiv = Div((*this)[site_idx]);
+    mock_qlten::SVD((*this)(site_idx), ldims, qndiv, pu, &s, &vt);
+    delete (*this)(site_idx);
+    (*this)(site_idx) = pu;
+
+    LocalTenT temp_ten;
+    Contract(&s, &vt, {{1}, {0}}, &temp_ten);
+    Contract(&temp_ten, (*this)(site_idx + 1), {{1}, {0}}, pnext_ten);
+  }
+
   delete (*this)(site_idx + 1);
   (*this)(site_idx + 1) = pnext_ten;
   tens_cano_type_[site_idx] = MPSTenCanoType::LEFT;
@@ -226,38 +228,49 @@ template<typename TenElemT, typename QNT>
 void FiniteMPS<TenElemT, QNT>::RightCanonicalize(const size_t stop_idx) {
   auto mps_tail_idx = this->size() - 1;
   size_t start_idx;
-  for (long i = mps_tail_idx; i >= stop_idx; --i) {
+  for (long i = mps_tail_idx; i >= long(stop_idx); --i) {
     start_idx = i;
     if (tens_cano_type_[i] != MPSTenCanoType::RIGHT) { break; }
-    if (i == stop_idx) { return; }    // All related tensors are right canonical, do nothing.
+    if (i == long(stop_idx)) { return; }    // All related tensors are right canonical, do nothing.
   }
-  for (long i = start_idx; i >= stop_idx; --i) { RightCanonicalizeTen(i); }
+  for (long i = start_idx; i >= long(stop_idx); --i) { RightCanonicalizeTen(i); }
 }
 
 template<typename TenElemT, typename QNT>
-QLTensor<QLTEN_Double, QNT> FiniteMPS<TenElemT, QNT>::RightCanonicalizeTen(const size_t site_idx) {
-  ///< TODO: using LQ decomposition
+QLTensor<QLTEN_Double, QNT> FiniteMPS<TenElemT, QNT>::RightCanonicalizeTen(const size_t site_idx, const bool use_svd) {
   assert(site_idx > 0);
-  size_t ldims = 1;
-  LocalTenT u;
-  QLTensor<QLTEN_Double, QNT> s;
-  auto pvt = new LocalTenT;
-  auto qndiv = Div((*this)[site_idx]);
-  mock_qlten::SVD((*this)(site_idx), ldims, qndiv - qndiv, &u, &s, pvt);
-  delete (*this)(site_idx);
-  (*this)(site_idx) = pvt;
-
-  LocalTenT temp_ten;
-  Contract(&u, &s, {{1}, {0}}, &temp_ten);
-  std::vector<std::vector<size_t>> ctrct_axes = {{2}, {0}};
   auto pprev_ten = new LocalTenT;
-  Contract((*this)(site_idx - 1), &temp_ten, ctrct_axes, pprev_ten);
+  QLTensor<QLTEN_Double, QNT> s;
+  if (use_svd) {
+    size_t ldims = 1;
+    LocalTenT u;
+    auto pvt = new LocalTenT;
+    auto qndiv = Div((*this)[site_idx]);
+    mock_qlten::SVD((*this)(site_idx), ldims, qndiv - qndiv, &u, &s, pvt);
+    delete (*this)(site_idx);
+    (*this)(site_idx) = pvt;
+
+    LocalTenT temp_ten;
+    Contract(&u, &s, {{1}, {0}}, &temp_ten);
+    std::vector<std::vector<size_t>> ctrct_axes = {{2}, {0}};
+    Contract((*this)(site_idx - 1), &temp_ten, ctrct_axes, pprev_ten);
+  } else { //qr
+    auto pq = new LocalTenT;
+    LocalTenT r;
+    (*this)(site_idx)->Transpose({2, 1, 0});
+    QR((*this)(site_idx), 2, Div((*this)[site_idx]), pq, &r);
+    delete (*this)(site_idx);
+    pq->Transpose({2, 1, 0});
+    (*this)(site_idx) = pq;
+
+    Contract((*this)(site_idx - 1), &r, {{2}, {1}}, pprev_ten);
+  }
   delete (*this)(site_idx - 1);
   (*this)(site_idx - 1) = pprev_ten;
 
   tens_cano_type_[site_idx] = MPSTenCanoType::RIGHT;
   tens_cano_type_[site_idx - 1] = MPSTenCanoType::NONE;
-  return s;
+  return s;//QR will return default tensor
 }
 
 template<typename TenElemT, typename QNT>
@@ -268,7 +281,7 @@ std::vector<double> FiniteMPS<TenElemT, QNT>::GetEntanglementEntropy(size_t n) {
   (*this)[N - 1].Normalize();
 
   for (size_t i = N - 1; i >= 1; --i) { // site
-    auto s = RightCanonicalizeTen(i);
+    auto s = RightCanonicalizeTen(i, true);
     double ee = 0;
     double sum_of_p2n = 0.0;
     const size_t sdim = s.GetShape()[0];

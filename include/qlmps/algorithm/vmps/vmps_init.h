@@ -219,15 +219,18 @@ std::pair<size_t, size_t> CheckAndUpdateBoundaryMPSTensors(
       right_boundary = i;
       break;
     } else if (mps_ten_shape[1] * mps_ten_shape[2] > mps_ten_shape[0]) {
+      auto index1 = mps[i].GetIndexes()[1];
+      auto index2 = mps[i].GetIndexes()[2];
       TenT index_combiner = IndexCombine<TenElemT, QNT>(
-          mps[i].GetIndexes()[1],
-          mps[i].GetIndexes()[2],
-          mps[i].GetIndexes()[0].GetDir()
+          index1,
+          index2,
+          IN
       );
       index_combiner.Transpose({2, 0, 1});
-      mps[i].FuseIndex(1, 2);
-      assert(mps[i].GetIndexes()[0] == InverseIndex(index_combiner.GetIndexes()[0]));
-      InplaceContract(mps(i - 1), mps(i), {{2}, {1}});
+      TenT index_combiner_dag = Dag(index_combiner);
+      InplaceContract(mps(i), &index_combiner_dag, {{1, 2}, {1, 2}});
+      assert(mps[i].GetIndexes()[1] == InverseIndex(index_combiner.GetIndexes()[0]));
+      InplaceContract(mps(i - 1), mps(i), {{2}, {0}});
       mps[i] = std::move(index_combiner);
     }
 

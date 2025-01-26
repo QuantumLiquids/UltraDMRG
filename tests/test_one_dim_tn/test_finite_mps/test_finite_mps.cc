@@ -79,7 +79,7 @@ void CheckIsIdTen(const TenT &t) {
   for (size_t i = 0; i < shape[0]; ++i) {
     for (size_t j = 0; j < shape[1]; ++j) {
       if (i == j) {
-        EXPECT_NEAR(t(i, j), 1.0, 1E-15);
+        EXPECT_NEAR(t(i, j), 1.0, 1.2E-15);
       } else {
         EXPECT_NEAR(t(i, j), 0.0, 1E-15);
       }

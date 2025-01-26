@@ -7,52 +7,58 @@
 # 
 # Set MKL compile flags and link flags.
 
-if (APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-        set(MATH_LIB_COMPILE_FLAGS "-I$ENV{MKLROOT}/include")
-        #Need test
-        set(MATH_LIB_LINK_FLAGS $ENV{MKLROOT}/lib/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/libmkl_intel_thread.a $ENV{MKLROOT}/lib/libmkl_core.a -liomp5 -lpthread -lm -ldl)
-    endif ()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        set(MATH_LIB_COMPILE_FLAGS -m64 -I$ENV{MKLROOT}/include)
-        # May not work
-        set(MATH_LIB_LINK_FLAGS $ENV{MKLROOT}/lib/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/libmkl_intel_thread.a $ENV{MKLROOT}/lib/libmkl_core.a -L$ENV{MKLROOT}/lib -L$ENV{CMPLR_ROOT}/mac/compiler/lib/ -liomp5 -lpthread -lm -ldl)
-    endif ()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        set(MATH_LIB_COMPILE_FLAGS -m64 -I$ENV{MKLROOT}/include)
-        # Note as of Intel oneAPI 2021.2, "source /opt/intel/oneapi/compiler/latest/env/vars.sh"
-        set(MATH_LIB_LINK_FLAGS $ENV{MKLROOT}/lib/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/libmkl_intel_thread.a $ENV{MKLROOT}/lib/libmkl_core.a -L$ENV{MKLROOT}/lib -L$ENV{CMPLR_ROOT}/mac/compiler/lib/ -Wl, -rpath $ENV{CMPLR_ROOT}/mac/compiler/lib/libiomp5.dylib -liomp5 -lpthread -lm -ldl)
-    endif ()
-elseif (APPLE)
-    #ARM
+option(QLMPS_USE_GPU "Use GPU" OFF)
+if (QLMPS_USE_GPU)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/") # find cutensor
+
+    add_definitions(-DUSE_GPU=1)
+
+    # Enable CUDA language support
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)  # Modern CUDA Toolkit detection
+
+    include_directories(${CUDAToolkit_INCLUDE_DIRS})
+    message(STATUS "CUDA_INCLUDE_DIRS: '${CUDAToolkit_INCLUDE_DIRS}'")
+
+    # Set CUDA architectures
+    set(CMAKE_CUDA_ARCHITECTURES 70 80) # For V100 & A100, adjust if needed
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -lineinfo -Xcompiler=-fPIC")
+
+
+    find_package(CUTENSOR REQUIRED)
+
+    file(GLOB_RECURSE TEST_SOURCES_SUBDIRS */*.cc)
+    file(GLOB TEST_SOURCES_ROOT *.cc)
+    set(TEST_SOURCES ${TEST_SOURCES_SUBDIRS} ${TEST_SOURCES_ROOT})
+    message(STATUS "TEST_SOURCES" ${TEST_SOURCES})
+    # Treat all .cc files in tests/ as CUDA files
+    set_source_files_properties(${TEST_SOURCES} PROPERTIES LANGUAGE CUDA)
+else ()
+    find_path(hptt_INCLUDE_DIR "hptt.h")
+    find_library(hptt_LIBRARY "libhptt.a")
+    message(STATUS "HPTT Lib : " "${hptt_LIBRARY}")
+endif ()
+option(QLTEN_USE_OPENBLAS "Use openblas rather mkl" OFF)
+
+
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+    set(BLA_VENDOR Intel10_64lp)   #FOR VENDOR CHOICE: https://cmake.org/cmake/help/latest/module/FindBLAS.html
+    set(BLAS_INCLUDE_DIR "$ENV{MKLROOT}/include")
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64") # (e.g., Apple Silicon)
     add_definitions(-DUSE_OPENBLAS)
     set(BLA_VENDOR OpenBLAS)
-    #        FIND_PACKAGE(BLAS REQUIRED)
-    #        FIND_PACKAGE(LAPACK REQUIRED)
-    set(OpenBLAS_ROOT "/opt/homebrew/opt/openblas/")
+    set(OpenBLAS_ROOT "/opt/homebrew/opt/openblas/") #work for homebrew installed openblas in MacOSX
     set(Lapack_ROOT "/opt/homebrew/opt/lapack")
-    set(OpenBLAS_INCLUDE_DIRS "${OpenBLAS_ROOT}/include")
-    set(OpenBLAS_LIBRARIES "${OpenBLAS_ROOT}/lib/libblas.dylib")
-    set(MATH_LIB_COMPILE_FLAGS -I${OpenBLAS_INCLUDE_DIRS} -pthread)
-    set(MATH_LIB_LINK_FLAGS ${OpenBLAS_LIBRARIES} ${OpenBLAS_ROOT}/lib/liblapack.dylib -lm -lpthread -ldl -fopenmp -lclapack)
-elseif (UNIX)
-    #UNIX include APPLE, but we except it here
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-        set(MATH_LIB_COMPILE_FLAGS "-I$ENV{MKLROOT}/include")
-        set(MATH_LIB_LINK_FLAGS -Wl,--start-group $ENV{MKLROOT}/lib/intel64/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/intel64/libmkl_intel_thread.a $ENV{MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -liomp5 -lpthread -lm -ldl)
-    endif ()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        set(MATH_LIB_COMPILE_FLAGS -m64 -I$ENV{MKLROOT}/include)
-        # Link the Intel's OpenMP library to avoid performance issue when the library calls the MKL's gesdd function.
-        set(MATH_LIB_LINK_FLAGS -Wl,--start-group $ENV{MKLROOT}/lib/intel64/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/intel64/libmkl_intel_thread.a $ENV{MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -L$ENV{MKLROOT}/lib/intel64 -liomp5 -lpthread -lm -ldl)
-    endif ()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        set(MATH_LIB_COMPILE_FLAGS -m64 -I$ENV{MKLROOT}/include)
-        set(MATH_LIB_LINK_FLAGS -Wl,--start-group $ENV{MKLROOT}/lib/intel64/libmkl_intel_lp64.a $ENV{MKLROOT}/lib/intel64/libmkl_intel_thread.a $ENV{MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -L$ENV{MKLROOT}/lib/intel64 -liomp5 -lpthread -lm -ldl)
-    endif ()
+    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${OpenBLAS_ROOT} ${Lapack_ROOT}) # For find
+    set(BLAS_INCLUDE_DIR "${OpenBLAS_ROOT}/include")
 endif ()
 
+set(MATH_LIB_LINK_FLAGS "BLAS::BLAS;LAPACK::LAPACK")
+
+FIND_PACKAGE(BLAS REQUIRED)
+FIND_PACKAGE(LAPACK REQUIRED)
 find_package(MPI REQUIRED)
+find_package(OpenMP REQUIRED)
 
 option(TEST_ACTUAL_COMBAT "test the actual examples of mps tensors" OFF)
 
@@ -60,104 +66,61 @@ if (TEST_ACTUAL_COMBAT)
     add_definitions(-DACTUALCOMBAT)
 endif ()
 
-#set omp flag
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    set(OMP_FLAGS -qopenmp)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(OMP_FLAGS -fopenmp)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(OMP_FLAGS -fopenmp)
-endif ()
 
-macro(add_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
+if (QLTEN_USE_GPU)
+    macro(add_unittest
+            TEST_NAME TEST_SRC MATH_INCLUDE_DIR LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
 
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${MATH_INCLUDE_DIR}
+                PRIVATE ${QLTEN_HEADER_PATH}
+                PRIVATE ${CUTENSOR_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR}
+        )
+        target_link_libraries(${TEST_NAME}
+                PRIVATE CUDA::cublas_static
+                PRIVATE CUDA::cusolver_static
+                PRIVATE ${CUTENSOR_LIBRARY}
+                PRIVATE GTest::GTest GTest::Main OpenMP::OpenMP_CXX
+                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+        ) #remove MPI dependence since GPU code not support MPI upto now
 
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            ${hptt_LIBRARY}
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            ${LINK_LIBS} "${LINK_LIB_FLAGS}")
-
-    add_test(
-            NAME ${TEST_NAME}
-            COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
-            WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    )
-
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
-
-
-macro(add_mpi_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS PROCESSOR_NUM)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
-
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            ${hptt_LIBRARY}
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-    )
-
-    if (NOT (MPIEXEC_MAX_NUMPROCS MATCHES "1"))
         add_test(
                 NAME ${TEST_NAME}
-                COMMAND ${MPIEXEC_EXECUTABLE}
-                ${MPIEXEC_NUMPROC_FLAG} ${PROCESSOR_NUM}
-                $<TARGET_FILE:${TEST_NAME}>)
-    endif ()
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
+                COMMAND "${TEST_NAME}")
 
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
+else ()
+    macro(add_unittest
+            TEST_NAME TEST_SRC MATH_INCLUDE_DIR LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
+        add_executable(${TEST_NAME}
+                ${TEST_SRC})
 
-macro(compile_unittest
-        TEST_NAME TEST_SRC CFLAGS LINK_LIBS LINK_LIB_FLAGS)
-    add_executable(${TEST_NAME}
-            ${TEST_SRC})
+        target_include_directories(${TEST_NAME}
+                PRIVATE ${MATH_INCLUDE_DIR}
+                PRIVATE ${QLTEN_HEADER_PATH}
+                PRIVATE ${hptt_INCLUDE_DIR}
+                PRIVATE ${MPI_CXX_HEADER_DIR})
+        target_link_libraries(${TEST_NAME}
+                PRIVATE ${hptt_LIBRARY}
+                MPI::MPI_CXX
+                PRIVATE GTest::GTest GTest::Main OpenMP::OpenMP_CXX
+                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+        )
 
-    target_compile_options(${TEST_NAME}
-            PRIVATE ${CFLAGS}
-            PRIVATE ${OMP_FLAGS}
-    )
-    target_include_directories(${TEST_NAME}
-            PRIVATE ${QLMPS_HEADER_PATH}
-            PRIVATE ${QLMPS_TENSOR_LIB_HEADER_PATH}
-            PRIVATE ${hptt_INCLUDE_DIR}
-            PRIVATE ${MPI_CXX_HEADER_DIR})
-    target_link_libraries(${TEST_NAME}
-            GTest::GTest GTest::Main
-            ${hptt_LIBRARY}
-            ${MPI_CXX_LINK_FLAGS}
-            ${MPI_mpi_LIBRARY}
-            "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
-    )
-    set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
-endmacro()
+        add_test(
+                NAME ${TEST_NAME}
+                COMMAND "${TEST_NAME}")
+
+        set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
+    endmacro()
+endif ()
 
 
 add_unittest(ultradmrg_hubbard2d
         "ultradmrg_hubbard2d.cpp"
-        "${MATH_LIB_COMPILE_FLAGS}" "" "${MATH_LIB_LINK_FLAGS}" ""
+        "${BLAS_INCLUDE_DIR}" "" "${MATH_LIB_LINK_FLAGS}" ""
 )
