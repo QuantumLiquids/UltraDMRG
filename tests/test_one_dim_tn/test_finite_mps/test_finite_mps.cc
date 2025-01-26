@@ -315,6 +315,8 @@ TEST_F(TestTwoSiteAlgorithmSpinSystem, Test1DHeisenbergEntanglementEntropy) {
       16, 16, 1.0E-9,
       LanczosParams(1.0E-9)
   );
+  RemoveFolder(sweep_params.mps_path);
+  RemoveFolder(sweep_params.temp_path);
   std::vector<size_t> stat_labs;
   for (size_t i = 0; i < N; ++i) { stat_labs.push_back(i % 2); }
   DirectStateInitMps(dmps, stat_labs);

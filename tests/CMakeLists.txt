@@ -53,12 +53,18 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64") # (e.g., Apple Silicon)
     set(BLAS_INCLUDE_DIR "${OpenBLAS_ROOT}/include")
 endif ()
 
-set(MATH_LIB_LINK_FLAGS "BLAS::BLAS;LAPACK::LAPACK")
-
 FIND_PACKAGE(BLAS REQUIRED)
 FIND_PACKAGE(LAPACK REQUIRED)
 find_package(MPI REQUIRED)
-find_package(OpenMP REQUIRED)
+
+# Intel MKL multi-thread may conflict with other compiler's OpenMP
+# Close OpenMP if using MKL with other compiler
+if (NOT BLA_VENDOR STREQUAL "Intel10_64lp" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    find_package(OpenMP REQUIRED)
+    link_libraries(OpenMP::OpenMP_CXX)
+endif ()
+
+set(MATH_LIB_LINK_FLAGS "BLAS::BLAS;LAPACK::LAPACK")
 
 option(TEST_ACTUAL_COMBAT "test the actual examples of mps tensors" OFF)
 
@@ -67,7 +73,7 @@ if (TEST_ACTUAL_COMBAT)
 endif ()
 
 
-if (QLTEN_USE_GPU)
+if (QLMPS_USE_GPU)
     macro(add_unittest
             TEST_NAME TEST_SRC MATH_INCLUDE_DIR LINK_LIBS LINK_LIB_FLAGS INPUT_ARGS)
         add_executable(${TEST_NAME}
@@ -83,13 +89,16 @@ if (QLTEN_USE_GPU)
                 PRIVATE CUDA::cublas_static
                 PRIVATE CUDA::cusolver_static
                 PRIVATE ${CUTENSOR_LIBRARY}
-                PRIVATE GTest::GTest GTest::Main OpenMP::OpenMP_CXX
-                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+                PRIVATE GTest::GTest GTest::Main
+                "${LINK_LIBS}"
+                PRIVATE "${LINK_LIB_FLAGS}"
         ) #remove MPI dependence since GPU code not support MPI upto now
 
         add_test(
                 NAME ${TEST_NAME}
-                COMMAND "${TEST_NAME}")
+                COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
+                WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        )
 
         set_target_properties(${TEST_NAME} PROPERTIES FOLDER tests)
     endmacro()
@@ -106,9 +115,10 @@ else ()
                 PRIVATE ${MPI_CXX_HEADER_DIR})
         target_link_libraries(${TEST_NAME}
                 PRIVATE ${hptt_LIBRARY}
-                MPI::MPI_CXX
-                PRIVATE GTest::GTest GTest::Main OpenMP::OpenMP_CXX
-                "${LINK_LIBS}" "${LINK_LIB_FLAGS}"
+                PRIVATE MPI::MPI_CXX
+                PRIVATE GTest::GTest GTest::Main
+                "${LINK_LIBS}"
+                PRIVATE "${LINK_LIB_FLAGS}"
         )
 
         add_test(
@@ -132,7 +142,7 @@ else ()
                 PRIVATE ${hptt_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
         target_link_libraries(${TEST_NAME}
-                GTest::GTest GTest::Main OpenMP::OpenMP_CXX
+                GTest::GTest GTest::Main
                 ${hptt_LIBRARY}
                 MPI::MPI_CXX
                 "${LINK_LIBS}" "${LINK_LIB_FLAGS}"

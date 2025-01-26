@@ -41,8 +41,7 @@ struct TestLanczos : public testing::Test {
 
 template<typename TenElemT, typename QNT>
 void RunTestTwoSiteLanczosSolverCase(
-    const std::vector<QLTensor<TenElemT, QNT> *
-    > &eff_ham,
+    const std::vector<QLTensor<TenElemT, QNT> *> &eff_ham,
     QLTensor<TenElemT, QNT> *pinit_state,
     const LanczosParams &lanczos_params
 ) {
@@ -54,8 +53,7 @@ void RunTestTwoSiteLanczosSolverCase(
       &eff_ham_mul_two_site_state,
       lanczos_params
   );
-  timer.
-      PrintElapsed();
+  timer.PrintElapsed();
 
   std::vector<size_t> ta_ctrct_axes1 = {1};
   std::vector<size_t> ta_ctrct_axes2 = {4};
@@ -99,8 +97,7 @@ void RunTestTwoSiteLanczosSolverCase(
       'N', 'U',
       dense_mat_dim, dense_mat, dense_mat_dim, w);
 
-  EXPECT_NEAR(lancz_res
-                  .gs_eng, w[0], 1.0E-8);
+  EXPECT_NEAR(lancz_res.gs_eng, w[0], 1.0E-8);
 
   delete lancz_res.
       gs_vec;
