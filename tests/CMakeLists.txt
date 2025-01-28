@@ -7,7 +7,6 @@
 # 
 # Set MKL compile flags and link flags.
 
-option(QLMPS_USE_GPU "Use GPU" OFF)
 if (QLMPS_USE_GPU)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/") # find cutensor
 
@@ -38,8 +37,6 @@ else ()
     find_library(hptt_LIBRARY "libhptt.a")
     message(STATUS "HPTT Lib : " "${hptt_LIBRARY}")
 endif ()
-option(QLTEN_USE_OPENBLAS "Use openblas rather mkl" OFF)
-
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     set(BLA_VENDOR Intel10_64lp)   #FOR VENDOR CHOICE: https://cmake.org/cmake/help/latest/module/FindBLAS.html
@@ -81,6 +78,7 @@ if (QLMPS_USE_GPU)
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
+                PRIVATE ${QLMPS_HEADER_DIR}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${CUTENSOR_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR}
@@ -110,6 +108,7 @@ else ()
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
+                PRIVATE ${QLMPS_HEADER_DIR}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
@@ -138,6 +137,7 @@ else ()
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
+                PRIVATE ${QLMPS_HEADER_DIR}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})

@@ -2,11 +2,11 @@
 
 [![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 
-**UltraDMRG** is a powerful and efficient library for performing large-scale, 
-high-performance calculations using 1D tensor network algorithms. 
-It is specifically designed to address the complexities of simulating 
-two-dimensional strongly correlated electron systems, making previously 
-untamable problems more accessible. Our goal is to lower the barriers to 
+**UltraDMRG** is a powerful and efficient library for performing large-scale,
+high-performance calculations using 1D tensor network algorithms.
+It is specifically designed to address the complexities of simulating
+two-dimensional strongly correlated electron systems, making previously
+untamable problems more accessible. Our goal is to lower the barriers to
 simulating strongly correlated systems. The package is header-only.
 
 ___
@@ -73,7 +73,7 @@ However, building test cases or practical DMRG/TDVP programs based on this proje
 
 ___
 
-## Install
+## Installation
 
 1. Clone the repository:
    ```bash
@@ -84,16 +84,30 @@ ___
 2. Build using CMake:
    ```bash
    mkdir build && cd build
-   cmake ..
-   make -j4 && make install
+   cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/install/location
+   make install
    ```
 
-### Cmake build options:
+This will install **UltraDMRG** into the specified directory.
 
-- Specify your preferred C++ compiler with `-DCMAKE_CXX_COMPILER`.
-- Use `-DCMAKE_INSTALL_PREFIX` to define the installation directory.
-- Build will only occur if `-DQLMPS_BUILD_UNITTEST=OFF` is set. Otherwise the header-only project will be installed
-  directly.
+### Building Tests
+
+To build and run the unit tests:
+
+1. From the `build` directory:
+    ```bash
+    cmake .. -DQLMPS_BUILD_UNITTEST=ON \
+             -DCMAKE_CXX_COMPILER=icpc/g++/clang++ \
+             -DGTest_DIR=/path/to/googletest \
+             -DQLMPS_USE_GPU=ON/OFF \
+             -DCUTENSOR_ROOT=/path/to/cutensor/if/using/cuda
+    make -j16
+    ```
+
+2. Run the tests:
+    ```bash
+    ctest
+    ```
 
 ---
 

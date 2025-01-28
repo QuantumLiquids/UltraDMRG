@@ -12,6 +12,7 @@ project("QuantumLiquids/UltraDMRG"
         DESCRIPTION "A large-scale matrix product state(MPS) algorithms library"
         LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
 
 # Build type control.
 if (NOT CMAKE_BUILD_TYPE)
@@ -29,20 +30,20 @@ option(QLMPS_BUILD_PROFILER "Build profiler test cases for UltraDMRG." OFF)
 option(QLMPS_BUILD_BENCHMARK "Build benchmark on the speed of 2D Hubbard DMRG." OFF)
 
 # Advanced options.
+option(QLMPS_MPI_TIMING_MODE "MPI Timing mode." OFF)
 option(QLMPS_TIMING_MODE "Timing mode." OFF)
+option(QLMPS_MPI_TIMING_MODE "MPI Timing mode." OFF)
+
+
 if (QLMPS_TIMING_MODE)
     add_definitions(-DQLMPS_TIMING_MODE)
 endif ()
-option(QLMPS_MPI_TIMING_MODE "MPI Timing mode." OFF)
 if (QLMPS_MPI_TIMING_MODE)
     add_definitions(-DQLMPS_MPI_TIMING_MODE)
 endif ()
 
-
 # Compilation and linking control.
-set(CMAKE_CXX_STANDARD 17)
-add_definitions(-g)
-
+add_definitions(-Wall -g)
 
 # Installation path
 set(QLMPS_TOOL_SCRIPT_DEST "${CMAKE_INSTALL_PREFIX}/bin")
@@ -58,7 +59,6 @@ install(DIRECTORY ${QLMPS_HEADER_DIR}
 
 # Build tool scripts
 add_subdirectory(script)
-
 
 # Build unittests.
 if (QLMPS_BUILD_UNITTEST)

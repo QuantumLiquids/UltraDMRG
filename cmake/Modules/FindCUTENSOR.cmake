@@ -19,19 +19,20 @@ find_path(CUTENSOR_INCLUDE_DIR
 
 # Dynamically find the versioned libcutensor directory
 file(GLOB VERSIONED_LIB_DIRS "${CUTENSOR_ROOT}/lib64/libcutensor/*")
+message(STATUS "Versioned library directories: ${VERSIONED_LIB_DIRS}")
 
 # Filter to directories that contain valid libraries
 set(CUTENSOR_LIB_PATHS "")
-foreach(version_dir ${VERSIONED_LIB_DIRS})
-    if(EXISTS "${version_dir}/libcutensor.so" OR EXISTS "${version_dir}/libcutensorMg.so")
+foreach (version_dir ${VERSIONED_LIB_DIRS})
+    if (EXISTS "${version_dir}/libcutensor.so" OR EXISTS "${version_dir}/libcutensorMg.so")
         list(APPEND CUTENSOR_LIB_PATHS "${version_dir}")
-    endif()
-endforeach()
+    endif ()
+endforeach ()
 
 # Fallback: Add default lib64 path in case no version directories are detected
-if(NOT CUTENSOR_LIB_PATHS)
+if (NOT CUTENSOR_LIB_PATHS)
     list(APPEND CUTENSOR_LIB_PATHS "${CUTENSOR_ROOT}/lib64/")
-endif()
+endif ()
 
 # Locate the main library
 find_library(CUTENSOR_LIBRARY
@@ -39,6 +40,7 @@ find_library(CUTENSOR_LIBRARY
         PATHS ${CUTENSOR_LIB_PATHS}
         DOC "Path to cuTENSOR main library"
 )
+message(STATUS "CUTENSOR_LIB_PATHS: ${CUTENSOR_LIB_PATHS}")
 
 # Locate the auxiliary library (cutensorMg if available)
 find_library(CUTENSOR_MG_LIBRARY
@@ -55,32 +57,30 @@ find_package_handle_standard_args(CUTENSOR
 )
 
 # Provide imported targets for easier use in CMake
-if(CUTENSOR_FOUND)
-    add_library(CUTENSOR::CUTENSOR SHARED IMPORTED
-            ../../include/qlten/framework/mem_ops.h
-            ../../tests/test_utility/hp_numeric.h)
+if (CUTENSOR_FOUND)
+    add_library(CUTENSOR::CUTENSOR SHARED IMPORTED)
     set_target_properties(CUTENSOR::CUTENSOR PROPERTIES
             IMPORTED_LOCATION ${CUTENSOR_LIBRARY}
             INTERFACE_INCLUDE_DIRECTORIES ${CUTENSOR_INCLUDE_DIR}
     )
 
-    if(CUTENSOR_MG_LIBRARY)
+    if (CUTENSOR_MG_LIBRARY)
         add_library(CUTENSOR::CUTENSOR_MG SHARED IMPORTED)
         set_target_properties(CUTENSOR::CUTENSOR_MG PROPERTIES
                 IMPORTED_LOCATION ${CUTENSOR_MG_LIBRARY}
                 INTERFACE_INCLUDE_DIRECTORIES ${CUTENSOR_INCLUDE_DIR}
         )
-    endif()
-endif()
+    endif ()
+endif ()
 
 # Provide useful messages
-if(CUTENSOR_FOUND)
+if (CUTENSOR_FOUND)
     message(STATUS "Found CUTENSOR: ${CUTENSOR_LIBRARY}")
     message(STATUS "CUTENSOR Mg library (if available): ${CUTENSOR_MG_LIBRARY}")
     message(STATUS "CUTENSOR include directory: ${CUTENSOR_INCLUDE_DIR}")
-else()
+else ()
     message(WARNING "cuTENSOR not found. Set CUTENSOR_ROOT to the cuTENSOR installation directory.")
-endif()
+endif ()
 
 # Make CUTENSOR available for the main CMakeLists.txt
 mark_as_advanced(CUTENSOR_INCLUDE_DIR CUTENSOR_LIBRARY)
