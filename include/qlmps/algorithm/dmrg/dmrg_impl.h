@@ -194,7 +194,11 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
       sweep_params.lancz_params
   );
   hamiltonian_terms_.clear();// this clear doesn't effect on the tensor raw data.
+#ifdef QLMPS_TIMING_MODE
+  auto lancz_elapsed_time = lancz_timer.PrintElapsed();
+#else
   auto lancz_elapsed_time = lancz_timer.Elapsed();
+#endif
   const double state_mem = lancz_res.gs_vec->GetRawDataMemUsage();
 
   //svd,
