@@ -16,8 +16,9 @@
 
 #include "qlmps/algorithm/lanczos_params.h"    // LanczosParams
 #include "qlten/qlten.h"
-#include "qlten/utility/timer.h"                // Timer
+#include "qlten/utility/timer.h"               // Timer
 #include "qlmps/algorithm/dmrg/dmrg.h"         // EffectiveHamiltonianTerm
+#include "qlmps/memory_monitor.h"              /MemoryMonitor
 
 #include <iostream>
 #include <vector>     // vector
@@ -63,6 +64,7 @@ LanczosRes<TenT> LanczosSolver(
     TenT *pinit_state,
     const LanczosParams &params
 ) {
+  MemoryMonitor monitor;
   // Take care that init_state will be destroyed after call the solver
   size_t eff_ham_eff_dim = pinit_state->size();
 
@@ -114,6 +116,7 @@ LanczosRes<TenT> LanczosSolver(
   // Lanczos iterations.
   while (true) {
     m += 1;
+    monitor.Checkpoint("lanczos m : " + std::to_string(m));
     auto gamma = last_mat_mul_vec_res;
     if (m == 1) {
       LinearCombine({-a[m - 1]}, {bases[m - 1]}, 1.0, gamma);

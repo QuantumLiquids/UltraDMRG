@@ -16,6 +16,7 @@
 #include "qlmps/algorithm/vmps/two_site_update_finite_vmps_impl.h"   //MeasureEE
 #include "qlmps/algorithm/dmrg/lanczos_dmrg_solver_impl.h"           //LanczosSolver
 #include "qlmps/algorithm/dmrg/operator_io.h"                        //ReadOperatorGroup
+#include "qlmps/memory_monitor.h"                                    //MemoryMonitor
 
 namespace qlmps {
 using namespace qlten;
@@ -77,6 +78,7 @@ class DMRGExecutor : public Executor {
   size_t l_site_;
   size_t r_site_;
 
+  MemoryMonitor memory_monitor_;
   SuperBlockHamiltonianTerms<Tensor> hamiltonian_terms_;
 };
 
@@ -187,7 +189,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   auto div_left = Div(mps_[l_site_]);
   delete mps_(l_site_);
   delete mps_(r_site_);
-  //lanczos,
+  memory_monitor_.Checkpoint("Before Lancz");
   Timer lancz_timer("two_site_dmrg_lancz");
   auto lancz_res = LanczosSolver(
       hamiltonian_terms_, init_state,

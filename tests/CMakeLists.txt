@@ -78,7 +78,7 @@ if (QLMPS_USE_GPU)
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
-                PRIVATE ${QLMPS_HEADER_DIR}
+                PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${CUTENSOR_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR}
@@ -108,7 +108,7 @@ else ()
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
-                PRIVATE ${QLMPS_HEADER_DIR}
+                PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
@@ -137,7 +137,7 @@ else ()
 
         target_include_directories(${TEST_NAME}
                 PRIVATE ${MATH_INCLUDE_DIR}
-                PRIVATE ${QLMPS_HEADER_DIR}
+                PRIVATE ${QLMPS_HEADER_PATH}
                 PRIVATE ${QLTEN_HEADER_PATH}
                 PRIVATE ${hptt_INCLUDE_DIR}
                 PRIVATE ${MPI_CXX_HEADER_DIR})
