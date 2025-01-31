@@ -17,8 +17,23 @@
 namespace qlmps {
 using namespace qlten;
 
-template <typename TenT>
+template<typename TenT>
 using MatReprMPO = std::vector<SparMat<TenT>>;
+
+template<typename TenT>
+double MemUsage(const MatReprMPO<TenT> &mrmpo) {
+  double mem = 0.0;
+  for (auto &ops : mrmpo) {
+    for (size_t i = 0; i < ops.rows; i++) {
+      for (size_t j = 0; j < ops.cols; j++) {
+        if (!ops.IsNull(i, j)) {
+          mem += ops(i, j).GetRawDataMemUsage();
+        }
+      }
+    }
+  }
+  return mem;
+}
 }/* qlmps */
 
 

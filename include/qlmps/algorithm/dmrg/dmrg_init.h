@@ -49,6 +49,7 @@ void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
 #ifndef USE_GPU
   std::cout << "The number of threads: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
 #endif
+  std::cout << "Matrix Represented Operators memory usage : " << MemUsage(mat_repr_mpo_) << "GB" << "\n";
   std::cout << "=====> Checking and Updating Boundary Tensors =====>" << std::endl;
 
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(
