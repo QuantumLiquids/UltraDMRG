@@ -18,7 +18,7 @@
 #include "qlten/qlten.h"
 #include "qlten/utility/timer.h"               // Timer
 #include "qlmps/algorithm/dmrg/dmrg.h"         // EffectiveHamiltonianTerm
-#include "qlmps/memory_monitor.h"              /MemoryMonitor
+#include "qlmps/memory_monitor.h"              //MemoryMonitor
 
 #include <iostream>
 #include <vector>     // vector
