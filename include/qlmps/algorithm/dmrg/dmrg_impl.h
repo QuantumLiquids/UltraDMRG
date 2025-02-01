@@ -257,10 +257,12 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
 #endif
   switch (dir_) {
     case 'r': {
+      ropg_vec_[r_block_len].clear();
       lopg_vec_[l_block_len + 1] = UpdateLeftBlockOps(lopg_vec_[l_block_len], mps_[l_site_], mat_repr_mpo_[l_site_]);
     }
       break;
     case 'l': {
+      lopg_vec_[l_block_len].clear();
       ropg_vec_[r_block_len + 1] = UpdateRightBlockOps(ropg_vec_[r_block_len], mps_[r_site_], mat_repr_mpo_[r_site_]);
     }
       break;
@@ -348,65 +350,52 @@ double DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
 #endif
   op_mem_ = 0.0;
   switch (dir_) {
-    case 'r':
+    case 'r': {
+      auto lblock_len = l_site_;
+      size_t lopg_size = mat_repr_mpo_[l_site_].rows;
+      auto rblock_len = (N_ - 1) - r_site_;
+      size_t ropg_size = mat_repr_mpo_[r_site_].cols;
       if (l_site_ == left_boundary_) {
         mps_.LoadTen(l_site_,
                      GenMPSTenName(sweep_params.mps_path, l_site_)
         );
-        auto lblock_len = l_site_;
-        size_t lopg_size = mat_repr_mpo_[l_site_].rows;
         lopg_vec_[lblock_len] = LeftBlockOperatorGroup<Tensor>(lopg_size);
         ReadOperatorGroup("l", lblock_len, lopg_vec_[lblock_len], sweep_params.temp_path);
-        auto rblock_len = N_ - 1 - r_site_;
-        size_t ropg_size = mat_repr_mpo_[r_site_].cols;
-        ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
-        ReadAndRemoveOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
-
-//        mem += mps_[l_site_].GetRawDataMemUsage();
-        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
-        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       } else {
         mps_.LoadTen(r_site_,
                      GenMPSTenName(sweep_params.mps_path, r_site_)
         );
-        auto rblock_len = (N_ - 1) - r_site_;
-        size_t ropg_size = mat_repr_mpo_[r_site_].cols;
-        ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
-        ReadAndRemoveOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
-
-//        mem += mps_[r_site_].GetRawDataMemUsage();
-        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       }
+      ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
+      ReadAndRemoveOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
+//    mem += mps_[r_site_].GetRawDataMemUsage();
+      op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
+      op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
+    }
       break;
-    case 'l':
+    case 'l': {
+      auto rblock_len = (N_ - 1) - r_site_;
+      size_t ropg_size = mat_repr_mpo_[r_site_].cols;
       if (r_site_ == right_boundary_) {
         mps_.LoadTen(r_site_,
                      GenMPSTenName(sweep_params.mps_path, r_site_)
         );
-        auto rblock_len = (N_ - 1) - r_site_;
-        size_t ropg_size = mat_repr_mpo_[r_site_].cols;
         ropg_vec_[rblock_len] = RightBlockOperatorGroup<QLTensor<TenElemT, QNT>>(ropg_size);
         ReadOperatorGroup("r", rblock_len, ropg_vec_[rblock_len], sweep_params.temp_path);
-        auto lblock_len = l_site_;
-        size_t lopg_size = mat_repr_mpo_[l_site_].rows;
-        lopg_vec_[l_site_] = LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>>(lopg_size);
-        ReadAndRemoveOperatorGroup("l", lblock_len, lopg_vec_[l_site_], sweep_params.temp_path);
-
-//        mem += mps_[r_site_].GetRawDataMemUsage();
-        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
-        op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
       } else {
         mps_.LoadTen(l_site_,
                      GenMPSTenName(sweep_params.mps_path, l_site_)
         );
-        auto lblock_len = l_site_;
-        size_t lopg_size = mat_repr_mpo_[l_site_].rows;
-        lopg_vec_[l_site_] = LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>>(lopg_size);
-        ReadAndRemoveOperatorGroup("l", lblock_len, lopg_vec_[l_site_], sweep_params.temp_path);
-
-//        mem += mps_[l_site_].GetRawDataMemUsage();
-        op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
       }
+      auto lblock_len = l_site_;
+      size_t lopg_size = mat_repr_mpo_[l_site_].rows;
+      lopg_vec_[l_site_] = LeftBlockOperatorGroup<QLTensor<TenElemT, QNT>>(lopg_size);
+      ReadAndRemoveOperatorGroup("l", lblock_len, lopg_vec_[l_site_], sweep_params.temp_path);
+
+      //        mem += mps_[r_site_].GetRawDataMemUsage();
+      op_mem_ += EvaluateOpMem(lopg_vec_[lblock_len]);
+      op_mem_ += EvaluateOpMem(ropg_vec_[rblock_len]);
+    }
       break;
     default:assert(false);
   }
