@@ -151,11 +151,11 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
     l_site_ = i;
     r_site_ = i + 1;
     double mem_load = LoadRelatedTensSweep_();
-    memory_monitor_.Checkpoint("Loaded Related Tens");
+//    memory_monitor_.Checkpoint("Loaded Related Tens");
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-    memory_monitor_.Checkpoint("Dumped Related Tens");
+//    memory_monitor_.Checkpoint("Dumped Related Tens");
   }
 
   dir_ = 'l';
@@ -163,11 +163,11 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
     l_site_ = i - 1;
     r_site_ = i;
     double mem_load = LoadRelatedTensSweep_();
-    memory_monitor_.Checkpoint("Loaded Related Tens");
+//    memory_monitor_.Checkpoint("Loaded Related Tens");
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-    memory_monitor_.Checkpoint("Dumped Related Tens");
+//    memory_monitor_.Checkpoint("Dumped Related Tens");
   }
   return e0_;
 }

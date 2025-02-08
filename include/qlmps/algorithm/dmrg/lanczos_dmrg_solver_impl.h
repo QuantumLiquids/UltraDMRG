@@ -116,7 +116,6 @@ LanczosRes<TenT> LanczosSolver(
   // Lanczos iterations.
   while (true) {
     m += 1;
-    monitor.Checkpoint("lanczos m : " + std::to_string(m));
     auto gamma = last_mat_mul_vec_res;
     if (m == 1) {
       LinearCombine({-a[m - 1]}, {bases[m - 1]}, 1.0, gamma);
@@ -187,6 +186,7 @@ LanczosRes<TenT> LanczosSolver(
       lancz_res.iters = m + 1;
       lancz_res.gs_eng = energy0;
       lancz_res.gs_vec = gs_vec;
+      monitor.Checkpoint("lanczos approaches finish. m : " + std::to_string(m));
       LanczosFree(eigvec, bases, m + 1, last_mat_mul_vec_res);
       return lancz_res;
     } else {
