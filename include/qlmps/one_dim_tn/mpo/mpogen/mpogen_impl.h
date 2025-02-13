@@ -127,12 +127,7 @@ void MPOGenerator<TenElemT, QNT>::AddTerm(
   //< Input Operator should remove some linear relationship. Here we remove the sign.
   for (size_t i = 0; i < local_ops.size(); i++) {
     auto &op = local_ops[i];
-#ifndef USE_GPU
-    const TenElemT first_data = (*op.GetRawDataPtr());
-#else
-    TenElemT first_data;
-    cudaMemcpy((void *)&first_data, op.GetRawDataPtr(), sizeof(TenElemT), cudaMemcpyDeviceToHost);
-#endif
+    const TenElemT first_data = op.GetFirstNonZeroElement();
     if (Real(first_data) < 0.0) {
       coef *= (-1);
       op *= (-1);

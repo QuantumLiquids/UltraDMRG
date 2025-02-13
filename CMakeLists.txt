@@ -25,6 +25,7 @@ if (${CMAKE_BUILD_TYPE} MATCHES Debug)
     set(CMAKE_VERBOSE_MAKEFILE ON)
 endif ()
 
+option(QLMPS_USE_GPU "USE CUDA." OFF)
 option(QLMPS_BUILD_UNITTEST "Build unittests for UltraDMRG." OFF)
 option(QLMPS_BUILD_PROFILER "Build profiler test cases for UltraDMRG." OFF)
 option(QLMPS_BUILD_BENCHMARK "Build benchmark on the speed of 2D Hubbard DMRG." OFF)

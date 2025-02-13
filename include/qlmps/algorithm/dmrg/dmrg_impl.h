@@ -144,8 +144,6 @@ void DMRGExecutor<TenElemT, QNT>::Execute() {
  */
 template<typename TenElemT, typename QNT>
 double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
-  using TenT = QLTensor<TenElemT, QNT>;
-
   dir_ = 'r';
   for (size_t i = left_boundary_; i < right_boundary_ - 1; ++i) {
     l_site_ = i;

@@ -714,18 +714,19 @@ inline SparOpReprMat SparCoefReprMatSparOpReprMatIncompleteMulti(
     const SparCoefReprMat &coef_mat, const SparOpReprMat &op_mat) {
   assert(coef_mat.cols == op_mat.rows);
   SparOpReprMat res(coef_mat.rows, op_mat.cols);
-  // future:
-  // #pragma omp parallel for default(none) \
-  //                          shared(coef_mat, op_mat, res) \
-  //                          schedule(dynamic) \
-  //                          num_threads(4)
-  // for(size_t i = 0; i < coef_mat.rows * op_mat.cols; i++){
-  //   const size_t x = i / op_mat.cols;
-  //   const size_t y = i % op_mat.cols;
-  //   SparCoefReprMatSparOpReprMatIncompleteMultiKernel(
-  //         coef_mat, op_mat, x, y, res);
-  // }
-
+  /* potential improvement: use omp to accelerate, but need to carefully deal with
+  the data competing.
+   #pragma omp parallel for default(none) \
+                            shared(coef_mat, op_mat, res) \
+                            schedule(dynamic) \
+                            num_threads(4)
+   for(size_t i = 0; i < coef_mat.rows * op_mat.cols; i++){
+     const size_t x = i / op_mat.cols;
+     const size_t y = i % op_mat.cols;
+     SparCoefReprMatSparOpReprMatIncompleteMultiKernel(
+           coef_mat, op_mat, x, y, res);
+   }
+    */
   for (size_t x = 0; x < coef_mat.rows; ++x) {
     for (size_t y = 0; y < op_mat.cols; ++y) {
       SparCoefReprMatSparOpReprMatIncompleteMultiKernel(

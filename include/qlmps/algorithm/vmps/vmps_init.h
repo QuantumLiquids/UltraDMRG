@@ -77,7 +77,6 @@ std::pair<size_t, size_t> FiniteVMPSInit(
     const MPO<QLTensor<TenElemT, QNT>> &mpo,
     const FiniteVMPSSweepParams &sweep_params
 ) {
-  using Tensor = QLTensor<TenElemT, QNT>;
   std::cout << "\n";
   std::cout << "=====> Sweep Parameters <=====" << "\n";
   std::cout << "MPS/MPO size: \t " << mpo.size() << "\n";
