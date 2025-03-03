@@ -11,6 +11,8 @@
 #define QLMPS_ALGORITHM_DMRG_DMRG_IMPL_H
 
 #include <string>
+#include <unistd.h>                                                  // sigaction
+#include <csignal>                                                   // SIGTERM, SIGINT and so on
 #include "qlmps/consts.h"                                            // kMpsPath, kRuntimeTempPath
 #include "qlmps/algorithm/lanczos_params.h"                          // LanczParams
 #include "qlmps/algorithm/vmps/two_site_update_finite_vmps_impl.h"   //MeasureEE
@@ -36,6 +38,27 @@ RightBlockOperatorGroup<QLTensor<TenElemT, QNT>> UpdateRightBlockOps(
     const SparMat<QLTensor<TenElemT, QNT>> &mat_repr_mpo   // site i
 );
 
+/**
+ * Class(Function) to perform finite-size DMRG (Density Matrix Renormalization Group).
+ * This function aims to mimic the traditional DMRG workflow, i.e. renormalized operator terminology.
+ *
+ * ### Key Difference:
+ * Unlike `TwoSiteFiniteVMPS`, this function takes the matrix representation
+ * of the MPO as input, rather than the MPO itself.
+ *
+ * ### Notes:
+ * - The input MPS (Matrix Product State) is assumed to be empty, with data stored on disk.
+ * - The canonical center of the input MPS should be set near site 0.
+ * - The canonical center of the output MPS will be enforced to move to site 0.
+ *
+ * ### Early Termination Behavior:
+ * The class supports graceful and emergency early exits based on signals:
+ * - **SIGUSR1/SIGUSR2**: Triggers a graceful exit after completing the current sweep.
+ *   This ensures that the MPS state remains consistent and can be resumed later.
+ * - **SIGINT/SIGTERM**: Triggers an emergency exit immediately after the current site update.
+ *   This is useful for urgent termination but may leave the MPS in an intermediate state.
+ *
+ */
 template<typename TenElemT, typename QNT>
 class DMRGExecutor : public Executor {
   using Tensor = QLTensor<TenElemT, QNT>;
@@ -53,6 +76,7 @@ class DMRGExecutor : public Executor {
 
   FiniteVMPSSweepParams sweep_params;
  private:
+  void PrintExeInfo_();
   void DMRGInit_();
   double DMRGSweep_();
   void DMRGPostProcess_();
@@ -61,6 +85,9 @@ class DMRGExecutor : public Executor {
   void SetEffectiveHamiltonianTerms_();
   double TwoSiteUpdate_();
   void DumpRelatedTensSweep_();
+  void SetUpSignalHandler_();
+  static void SignalHandler_(int sig);
+  void EmergencyDumpRelatedTens_();
 
   size_t N_; //number of site
   FiniteMPS<TenElemT, QNT> mps_;
@@ -80,6 +107,10 @@ class DMRGExecutor : public Executor {
 
   MemoryMonitor memory_monitor_;
   SuperBlockHamiltonianTerms<Tensor> hamiltonian_terms_;
+
+  struct sigaction sa_;
+  static std::atomic<bool> stop_requested_; // stop signal
+  static std::atomic<bool> emergency_stop_requested_;
 };
 
 template<typename TenElemT, typename QNT>
@@ -101,36 +132,29 @@ DMRGExecutor<TenElemT, QNT>::DMRGExecutor(
   auto hilbert_space = SiteVec<TenElemT, QNT>(index_vec);
   mps_ = FiniteMPS(hilbert_space);
 
+  SetUpSignalHandler_();
   SetStatus(ExecutorStatus::INITED);
 }
 
-/**
- * Function to perform finite-size DMRG (Density Matrix Renormalization Group).
- * This function aims to mimic the traditional DMRG workflow, i.e. renormalized operator terminology.
- *
- * ### Key Difference:
- * Unlike `TwoSiteFiniteVMPS`, this function takes the matrix representation
- * of the MPO as input, rather than the MPO itself.
- *
- * ### Notes:
- * - The input MPS (Matrix Product State) is assumed to be empty, with data stored on disk.
- * - The canonical center of the input MPS should be set near site 0.
- * - The canonical center of the output MPS will be enforced to move to site 0.
- */
 template<typename TenElemT, typename QNT>
 void DMRGExecutor<TenElemT, QNT>::Execute() {
   SetStatus(ExecutorStatus::EXEING);
   assert(mps_.size() == mat_repr_mpo_.size());
+  PrintExeInfo_();
   DMRGInit_();
 
   std::cout << "\n";
   mps_.LoadTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1));
   for (size_t sweep = 1; sweep <= sweep_params.sweeps; ++sweep) {
-    std::cout << "sweep " << sweep << std::endl;
+    std::cout << "sweep " << sweep << "/" << sweep_params.sweeps << std::endl;
     Timer sweep_timer("sweep");
     e0_ = DMRGSweep_();
     sweep_timer.PrintElapsed();
     std::cout << "\n";
+    if (stop_requested_ || emergency_stop_requested_) {
+      std::cout << "Stop DMRG sweep in advance." << std::endl;
+      break; // stop in advance
+    }
   }
   mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
   DMRGPostProcess_();
@@ -148,24 +172,28 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
   for (size_t i = left_boundary_; i < right_boundary_ - 1; ++i) {
     l_site_ = i;
     r_site_ = i + 1;
-    double mem_load = LoadRelatedTensSweep_();
-//    memory_monitor_.Checkpoint("Loaded Related Tens");
+    LoadRelatedTensSweep_();
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-//    memory_monitor_.Checkpoint("Dumped Related Tens");
+    if (emergency_stop_requested_) [[unlikely]] {
+      EmergencyDumpRelatedTens_();
+      return e0_;
+    }
   }
 
   dir_ = 'l';
   for (size_t i = right_boundary_; i > left_boundary_ + 1; --i) {
     l_site_ = i - 1;
     r_site_ = i;
-    double mem_load = LoadRelatedTensSweep_();
-//    memory_monitor_.Checkpoint("Loaded Related Tens");
+    LoadRelatedTensSweep_();
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-//    memory_monitor_.Checkpoint("Dumped Related Tens");
+    if (emergency_stop_requested_) [[unlikely]] {
+      EmergencyDumpRelatedTens_();
+      return e0_;
+    }
   }
   return e0_;
 }
@@ -191,7 +219,7 @@ double DMRGExecutor<TenElemT, QNT>::TwoSiteUpdate_() {
   auto div_left = Div(mps_[l_site_]);
   delete mps_(l_site_);
   delete mps_(r_site_);
-  memory_monitor_.Checkpoint("Before Lancz");
+//  memory_monitor_.Checkpoint("Before Lancz");
   Timer lancz_timer("two_site_dmrg_lancz");
   auto lancz_res = LanczosSolver(
       hamiltonian_terms_, init_state,
@@ -341,6 +369,27 @@ void DMRGExecutor<TenElemT, QNT>::DumpRelatedTensSweep_() {
 }
 
 template<typename TenElemT, typename QNT>
+void DMRGExecutor<TenElemT, QNT>::EmergencyDumpRelatedTens_() {
+  switch (dir_) {
+    case 'r':
+      mps_.DumpTen(
+          r_site_,
+          GenMPSTenName(sweep_params.mps_path, r_site_),
+          true
+      );
+      break;
+    case 'l':
+      mps_.DumpTen(
+          l_site_,
+          GenMPSTenName(sweep_params.mps_path, l_site_),
+          true
+      );
+      break;
+    default:assert(false);
+  }
+}
+
+template<typename TenElemT, typename QNT>
 double DMRGExecutor<TenElemT, QNT>::LoadRelatedTensSweep_(
 ) {
 #ifdef QLMPS_TIMING_MODE
@@ -415,6 +464,38 @@ void DMRGExecutor<TenElemT, QNT>::DMRGPostProcess_() {
   }
   mps_.DumpTen(sweep_params.mps_path, 0);
   std::cout << "Moved the center of MPS to 0." << std::endl;
+}
+
+template<typename TenElemT, typename QNT>
+std::atomic<bool> DMRGExecutor<TenElemT, QNT>::stop_requested_(false);
+
+template<typename TenElemT, typename QNT>
+std::atomic<bool> DMRGExecutor<TenElemT, QNT>::emergency_stop_requested_(false);
+
+template<typename TenElemT, typename QNT>
+void DMRGExecutor<TenElemT, QNT>::SetUpSignalHandler_() {
+  sa_.sa_handler = &DMRGExecutor::SignalHandler_;
+  sigemptyset(&sa_.sa_mask);
+  sa_.sa_flags = SA_RESTART;
+  sigaction(SIGUSR1, &sa_, nullptr);
+  sigaction(SIGUSR2, &sa_, nullptr);
+  sigaction(SIGINT, &sa_, nullptr);       // Ctrl+C
+  sigaction(SIGTERM, &sa_, nullptr);      //
+}
+
+template<typename TenElemT, typename QNT>
+void DMRGExecutor<TenElemT, QNT>::SignalHandler_(int sig) {
+  if (sig == SIGUSR1 || sig == SIGUSR2) {
+    stop_requested_.store(true);
+    const char msg[] = "SIGUSR received: Stopping after current sweep.\n";
+    // use write instead of cout to avoid deadlock
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+  } else if (sig == SIGINT || sig == SIGTERM) {
+    stop_requested_.store(true);
+    emergency_stop_requested_.store(true);
+    const char msg[] = "SIGINT/SIGTERM: Emergency exit triggered.\n";
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+  }
 }
 
 template<typename TenElemT, typename QNT>

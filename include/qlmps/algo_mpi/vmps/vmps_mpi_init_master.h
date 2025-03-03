@@ -96,7 +96,6 @@ std::pair<size_t, size_t> TwoSiteFiniteVMPSInit(
   std::cout << "The number of threads per processor: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
 #endif
   std::cout << "=====> Checking and updating boundary tensors =====>" << std::endl;
-  using Tensor = QLTensor<TenElemT, QNT>;
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(
       mps,
       sweep_params.mps_path,

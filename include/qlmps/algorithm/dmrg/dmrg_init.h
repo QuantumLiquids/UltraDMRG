@@ -36,7 +36,7 @@ inline bool NeedGenerateBlockOps(
 );
 
 template<typename TenElemT, typename QNT>
-void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
+void DMRGExecutor<TenElemT, QNT>::PrintExeInfo_() {
   std::cout << "\n";
   std::cout << "=====> Sweep Parameters For DMRG <=====" << "\n";
   std::cout << "MPS/MPO size: \t " << mps_.size() << "\n";
@@ -50,6 +50,10 @@ void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
   std::cout << "The number of threads: \t" << hp_numeric::GetTensorManipulationThreads() << "\n";
 #endif
   std::cout << "Matrix Represented Operators memory usage : " << MemUsage(mat_repr_mpo_) << "GB" << "\n";
+}
+
+template<typename TenElemT, typename QNT>
+void DMRGExecutor<TenElemT, QNT>::DMRGInit_() {
   std::cout << "=====> Checking and Updating Boundary Tensors =====>" << std::endl;
 
   auto [left_boundary, right_boundary] = CheckAndUpdateBoundaryMPSTensors(
