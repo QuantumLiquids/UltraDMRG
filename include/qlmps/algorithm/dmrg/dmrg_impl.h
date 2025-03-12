@@ -11,6 +11,7 @@
 #define QLMPS_ALGORITHM_DMRG_DMRG_IMPL_H
 
 #include <string>
+#include <atomic>
 #include <unistd.h>                                                  // sigaction
 #include <csignal>                                                   // SIGTERM, SIGINT and so on
 #include "qlmps/consts.h"                                            // kMpsPath, kRuntimeTempPath
