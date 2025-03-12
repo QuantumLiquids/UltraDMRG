@@ -151,7 +151,7 @@ void DMRGExecutor<TenElemT, QNT>::Execute() {
     e0_ = DMRGSweep_();
     sweep_timer.PrintElapsed();
     std::cout << "\n";
-    if (stop_requested_ || emergency_stop_requested_) {
+    if (stop_requested_.load() || emergency_stop_requested_.load()) {
       std::cout << "Stop DMRG sweep in advance." << std::endl;
       break; // stop in advance
     }
@@ -176,7 +176,7 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-    if (emergency_stop_requested_) [[unlikely]] {
+    if (emergency_stop_requested_.load()) [[unlikely]] {
       EmergencyDumpRelatedTens_();
       return e0_;
     }
@@ -190,7 +190,7 @@ double DMRGExecutor<TenElemT, QNT>::DMRGSweep_() {
     SetEffectiveHamiltonianTerms_();
     e0_ = TwoSiteUpdate_();
     DumpRelatedTensSweep_();
-    if (emergency_stop_requested_) [[unlikely]] {
+    if (emergency_stop_requested_.load()) [[unlikely]] {
       EmergencyDumpRelatedTens_();
       return e0_;
     }
