@@ -248,6 +248,8 @@ Add one-body or two-body interaction term.
 @param inst_op_idxs The explicit site indexes of the insertion operator.
 
 @since version 0.2.0
+
+@note for the insertion included case (fermion), the op1_idx and op2_idx should be ordered.
 */
 template<typename TenElemT, typename QNT>
 void MPOGenerator<TenElemT, QNT>::AddTerm(
@@ -269,6 +271,7 @@ void MPOGenerator<TenElemT, QNT>::AddTerm(
       AddTerm(coef, {op1, op2}, {op1_idx, op2_idx});
     } else {                          // Non-trivial insertion operator
       if (inst_op_idxs == kNullUintVec) {    // Uniform insertion
+        assert(op1_idx < op2_idx);
         AddTerm(coef, {op1, op2}, {op1_idx, op2_idx}, {inst_op});
       } else {                              // Non-uniform insertion
         AddTerm(
