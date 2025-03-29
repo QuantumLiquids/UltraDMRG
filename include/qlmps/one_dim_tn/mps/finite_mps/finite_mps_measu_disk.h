@@ -219,6 +219,12 @@ MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
   return measure_res;
 }
 
+/**
+ * Measure the two-site correlations which specific physical operator pair,
+ * the target sites are taken all the sites after the reference site.
+ *
+ * @return measured results
+ */
 template<typename TenElemT, typename QNT>
 MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
     FiniteMPS<TenElemT, QNT> &mps,
@@ -235,6 +241,26 @@ MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
     site2_set.push_back(site);
   }
   return MeasureTwoSiteOpGroup(mps, mps_path, phys_ops1, phys_ops2, ref_site, site2_set, inst_op);
+}
+
+/**
+ * Measure the two-site correlations which specific physical operator pair,
+ * the target sites are taken all the sites after the reference site.
+ * Dump the results to file based on the filename_base
+ */
+template<typename TenElemT, typename QNT>
+MeasuRes<TenElemT> MeasureTwoSiteOpGroup(
+    FiniteMPS<TenElemT, QNT> &mps,
+    const std::string mps_path,
+    const QLTensor<TenElemT, QNT> &phys_ops1,
+    const QLTensor<TenElemT, QNT> &phys_ops2,
+    const size_t ref_site,
+    const QLTensor<TenElemT, QNT> &inst_op,
+    const std::string filename_base
+) {
+  MeasuRes<TenElemT> res = MeasureTwoSiteOpGroup(mps, mps_path, phys_ops1, phys_ops2, ref_site, inst_op);
+  DumpMeasuRes(res, filename_base);
+  return res;
 }
 
 ///< Struct used to record the site of temp_ten

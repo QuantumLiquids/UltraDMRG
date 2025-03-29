@@ -15,25 +15,20 @@
 #ifndef QLMPS_SITE_VEC_H
 #define QLMPS_SITE_VEC_H
 
+#include <vector>   // vector
+#include <cassert>       // assert
 
 #include "qlten/qlten.h"  // Index, IndexVec, InverseIndex
 
-#include <vector>   // vector
-
-#include <assert.h>       // assert
-
-
 #ifdef Release
-  #define NDEBUG
+#define NDEBUG
 #endif
-
 
 namespace qlmps {
 using namespace qlten;
 
-
 // Helpers
-template <typename QNT>
+template<typename QNT>
 inline Index<QNT> SetIndexDirOut(const Index<QNT> &idx) {
   if (idx.GetDir() == TenIndexDirType::OUT) {
     return idx;
@@ -42,15 +37,13 @@ inline Index<QNT> SetIndexDirOut(const Index<QNT> &idx) {
   }
 }
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 QLTensor<TenElemT, QNT> GenIdOp(const Index<QNT> &idx_out) {
   auto idx_in = InverseIndex(idx_out);
   QLTensor<TenElemT, QNT> id_op({idx_in, idx_out});
   for (size_t i = 0; i < idx_out.dim(); ++i) { id_op(i, i) = 1.0; }
   return id_op;
 }
-
 
 /**
 Vector of the local Hilbert spaces of the system.
@@ -59,9 +52,9 @@ Vector of the local Hilbert spaces of the system.
 
 @since version 0.2.0
 */
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 class SiteVec {
-public:
+ public:
   using TenT = QLTensor<TenElemT, QNT>;
   /**
   Create a system with N identical sites.
@@ -137,15 +130,14 @@ public:
   IndexVec<QNT> sites;          ///< Local Hilbert spaces represented by a vector of Index with OUT direction.
   std::vector<TenT> id_ops;     ///< Identity operators on each site.
 
-private:
+ private:
   /**
   Generate identity operators for each site.
   */
   void GenIdOpsVec_(void);
 };
 
-
-template <typename TenElemT, typename QNT>
+template<typename TenElemT, typename QNT>
 void SiteVec<TenElemT, QNT>::GenIdOpsVec_(void) {
   id_ops.reserve(size);
   for (size_t i = 0; i < size; ++i) {
