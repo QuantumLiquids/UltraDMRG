@@ -38,4 +38,8 @@
 #include "qlmps/algorithm/vmps/two_site_update_noise_finite_vmps_impl.h"
 #include "qlmps/algo_mpi/vmps/two_site_update_noised_finite_vmps_mpi.h" //TwoSiteFiniteVMPSWithNoise
 
+// Model relevant
+#include "qlmps/model_relevant/sites/model_site_base.h"
+#include "qlmps/model_relevant/operators/operators_all.h"
+
 #endif /* ifndef QLMPS_QLMPS_H */
