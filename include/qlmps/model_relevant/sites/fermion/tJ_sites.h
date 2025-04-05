@@ -22,11 +22,11 @@ namespace sites {
  *                      3. qlten::special_qn::U1QN  (conserve spin Sz rather particle number)
  */
 template<typename QNT>
-struct tJSites : public ModelSiteBase<QNT> {
+struct tJSite : public ModelSiteBase<QNT> {
   using QNSctT = qlten::QNSector<QNT>;
   using IndexT = qlten::Index<QNT>;
 
-  tJSites() {
+  tJSite() {
     if constexpr (std::is_same_v<QNT, qlten::special_qn::U1U1QN>) {
       // U(1) x U(1) symmetry
       this->phys_bond_out = IndexT({QNSctT(QNT({QNCard("N", U1QNVal(1)), QNCard("Sz", U1QNVal(1))}), 1),
@@ -44,7 +44,7 @@ struct tJSites : public ModelSiteBase<QNT> {
                                     QNSctT(QNT({QNCard("Sz", U1QNVal(0))}), 1)}, TenIndexDirType::OUT);
     } else {
       // Handle unsupported QNT types with a compile-time error
-      static_assert(false, "Unsupported QNT type for tJSites constructor");
+      static_assert(false, "Unsupported QNT type for tJSite constructor");
     }
     spin_up = 0;
     spin_down = 1;
@@ -57,7 +57,7 @@ struct tJSites : public ModelSiteBase<QNT> {
   size_t spin_down;
   size_t empty;
 
-}; // tJSites
+}; // tJSite
 
 }//sites
 }//qlmps

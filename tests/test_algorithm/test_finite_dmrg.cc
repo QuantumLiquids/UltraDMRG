@@ -92,7 +92,7 @@ void RunTestDMRGCase(
 struct TestDMRGSpinSystem : public testing::Test {
   size_t N = 6;
 
-  sites::SpinOneHalfSites<U1QN> spin_one_half_sites;
+  sites::SpinOneHalfSite<U1QN> spin_one_half_sites;
   DSiteVec dsite_vec_6 = spin_one_half_sites.GenUniformSites<QLTEN_Double>(N);
   ZSiteVec zsite_vec_6 = spin_one_half_sites.GenUniformSites<QLTEN_Complex>(N);
 
@@ -356,7 +356,7 @@ TEST(TestTwoSiteAlgorithmNoSymmetrySpinSystem, 2DKitaevComplexCase) {
   size_t N = Nx * Ny;
 
   //---------------Generate the MPO-----------------
-  sites::SpinOneHalfSites<QNT> spin_one_half_sites;
+  sites::SpinOneHalfSite<QNT> spin_one_half_sites;
   auto site_vec = spin_one_half_sites.GenUniformSites<TenElemType>(N);
   SpinOneHalfOperators<TenElemType, QNT> spin_operators;
   auto sz = spin_operators.sz;
@@ -448,7 +448,7 @@ struct TestTwoSiteAlgorithmTjSystem2U1Symm : public testing::Test {
   size_t N = 4;
   double t = 3.0;
   double J = 1.0;
-  sites::tJSites<U1U1QN> tj_fermion_sites;
+  sites::tJSite<U1U1QN> tj_fermion_sites;
 
   DSiteVec2 dsite_vec_4 = tj_fermion_sites.GenUniformSites<QLTEN_Double>(N);
   ZSiteVec2 zsite_vec_4 = tj_fermion_sites.GenUniformSites<QLTEN_Complex>(N);
@@ -538,13 +538,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
       std::make_pair(2, 3),
       std::make_pair(1, 3)};
   for (auto &p : nn_pairs) {
-    dmpo_gen.AddTerm(-t, dcdagup, p.first, dcup, p.second, df);
-    dmpo_gen.AddTerm(-t, dcdagdn, p.first, dcdn, p.second, df);
-    dmpo_gen.AddTerm(-t, dcup, p.first, dcdagup, p.second, df);
-    dmpo_gen.AddTerm(-t, dcdn, p.first, dcdagdn, p.second, df);
-    dmpo_gen.AddTerm(J, dsz, p.first, dsz, p.second);
-    dmpo_gen.AddTerm(J / 2, dsp, p.first, dsm, p.second);
-    dmpo_gen.AddTerm(J / 2, dsm, p.first, dsp, p.second);
+    AddTJHoppingTerms(dmpo_gen, t, p.first, p.second, doperators);
+    AddHeisenbergCoupling(dmpo_gen, J, p.first, p.second, doperators);
   }
   auto dmpo = dmpo_gen.GenMatReprMPO();
 
@@ -570,13 +565,8 @@ TEST_F(TestTwoSiteAlgorithmTjSystem2U1Symm, 2DCase) {
   // Complex Hamiltonian
   auto zmpo_gen = MPOGenerator<QLTEN_Complex, U1U1QN>(zsite_vec_4);
   for (auto &p : nn_pairs) {
-    zmpo_gen.AddTerm(-t, zcdagup, p.first, zcup, p.second, zf);
-    zmpo_gen.AddTerm(-t, zcdagdn, p.first, zcdn, p.second, zf);
-    zmpo_gen.AddTerm(-t, zcup, p.first, zcdagup, p.second, zf);
-    zmpo_gen.AddTerm(-t, zcdn, p.first, zcdagdn, p.second, zf);
-    zmpo_gen.AddTerm(J, zsz, p.first, zsz, p.second);
-    zmpo_gen.AddTerm(J / 2, zsp, p.first, zsm, p.second);
-    zmpo_gen.AddTerm(J / 2, zsm, p.first, zsp, p.second);
+    AddTJHoppingTerms(zmpo_gen, QLTEN_Complex(t), p.first, p.second, zoperators);
+    AddHeisenbergCoupling(zmpo_gen, J, p.first, p.second, zoperators);
   }
   auto zmpo = zmpo_gen.GenMatReprMPO();
   DirectStateInitMps(zmps, {2, 0, 1, 2});
@@ -723,7 +713,7 @@ struct TestTwoSiteAlgorithmHubbardSystem : public testing::Test {
   double t1 = 0.5;
   double U = 2.0;
 
-  sites::HubbardSites<QNT> sites;
+  sites::HubbardSite<QNT> sites;
 
   DSiteVec2 dsite_vec = sites.template GenUniformSites<QLTEN_Double>(N);
   ZSiteVec2 zsite_vec = sites.template GenUniformSites<QLTEN_Complex>(N);
@@ -759,18 +749,12 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
       if (i != Nx - 1) {
         auto s1 = coors2idxSquare(i + 1, j, Nx, Ny);
         std::cout << s0 << " " << s1 << std::endl;
-        dmpo_gen.AddTerm(-t0, doperators.bupcF, s0, doperators.bupa, s1, doperators.f);
-        dmpo_gen.AddTerm(t0, doperators.bupaF, s0, doperators.bupc, s1, doperators.f);
-        dmpo_gen.AddTerm(-t0, doperators.bdnc, s0, doperators.Fbdna, s1, doperators.f);
-        dmpo_gen.AddTerm(t0, doperators.bdna, s0, doperators.Fbdnc, s1, doperators.f);
+        AddHubbardHoppingTerms(dmpo_gen, t0, s0, s1, doperators);
       }
       if (j != Ny - 1) {
         auto s1 = coors2idxSquare(i, j + 1, Nx, Ny);
         std::cout << s0 << " " << s1 << std::endl;
-        dmpo_gen.AddTerm(-t0, doperators.bupcF, s0, doperators.bupa, s1, doperators.f);
-        dmpo_gen.AddTerm(t0, doperators.bupaF, s0, doperators.bupc, s1, doperators.f);
-        dmpo_gen.AddTerm(-t0, doperators.bdnc, s0, doperators.Fbdna, s1, doperators.f);
-        dmpo_gen.AddTerm(t0, doperators.bdna, s0, doperators.Fbdnc, s1, doperators.f);
+        AddHubbardHoppingTerms(dmpo_gen, t0, s0, s1, doperators);
       }
 
       if (j != Ny - 1) {
@@ -779,20 +763,14 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
           auto temp_s0 = s0;
           KeepOrder(temp_s0, s2);
           std::cout << temp_s0 << " " << s2 << std::endl;
-          dmpo_gen.AddTerm(-t1, doperators.bupcF, temp_s0, doperators.bupa, s2, doperators.f);
-          dmpo_gen.AddTerm(t1, doperators.bupaF, temp_s0, doperators.bupc, s2, doperators.f);
-          dmpo_gen.AddTerm(-t1, doperators.bdnc, temp_s0, doperators.Fbdna, s2, doperators.f);
-          dmpo_gen.AddTerm(t1, doperators.bdna, temp_s0, doperators.Fbdnc, s2, doperators.f);
+          AddHubbardHoppingTerms(dmpo_gen, t1, temp_s0, s2, doperators);
         }
         if (i != Nx - 1) {
           auto s2 = coors2idxSquare(i + 1, j + 1, Nx, Ny);
           auto temp_s0 = s0;
           KeepOrder(temp_s0, s2);
           std::cout << temp_s0 << " " << s2 << std::endl;
-          dmpo_gen.AddTerm(-t1, doperators.bupcF, temp_s0, doperators.bupa, s2, doperators.f);
-          dmpo_gen.AddTerm(t1, doperators.bupaF, temp_s0, doperators.bupc, s2, doperators.f);
-          dmpo_gen.AddTerm(-t1, doperators.bdnc, temp_s0, doperators.Fbdna, s2, doperators.f);
-          dmpo_gen.AddTerm(t1, doperators.bdna, temp_s0, doperators.Fbdnc, s2, doperators.f);
+          AddHubbardHoppingTerms(dmpo_gen, t1, temp_s0, s2, doperators);
         }
       }
     }
@@ -825,18 +803,12 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
       if (i != Nx - 1) {
         auto s1 = coors2idxSquare(i + 1, j, Nx, Ny);
         std::cout << s0 << " " << s1 << std::endl;
-        zmpo_gen.AddTerm(-t0, zoperators.bupcF, s0, zoperators.bupa, s1, zf);
-        zmpo_gen.AddTerm(t0, zoperators.bupaF, s0, zoperators.bupc, s1, zf);
-        zmpo_gen.AddTerm(-t0, zoperators.bdnc, s0, zoperators.Fbdna, s1, zf);
-        zmpo_gen.AddTerm(t0, zoperators.bdna, s0, zoperators.Fbdnc, s1, zf);
+        AddHubbardHoppingTerms(zmpo_gen, t0, s0, s1, zoperators);
       }
       if (j != Ny - 1) {
         auto s1 = coors2idxSquare(i, j + 1, Nx, Ny);
         std::cout << s0 << " " << s1 << std::endl;
-        zmpo_gen.AddTerm(-t0, zoperators.bupcF, s0, zoperators.bupa, s1, zf);
-        zmpo_gen.AddTerm(t0, zoperators.bupaF, s0, zoperators.bupc, s1, zf);
-        zmpo_gen.AddTerm(-t0, zoperators.bdnc, s0, zoperators.Fbdna, s1, zf);
-        zmpo_gen.AddTerm(t0, zoperators.bdna, s0, zoperators.Fbdnc, s1, zf);
+        AddHubbardHoppingTerms(zmpo_gen, t0, s0, s1, zoperators);
       }
 
       if (j != Ny - 1) {
@@ -845,20 +817,14 @@ TEST_F(TestTwoSiteAlgorithmHubbardSystem, 2Dcase) {
           auto temp_s0 = s0;
           KeepOrder(temp_s0, s2);
           std::cout << temp_s0 << " " << s2 << std::endl;
-          zmpo_gen.AddTerm(-t1, zoperators.bupcF, temp_s0, zoperators.bupa, s2, zf);
-          zmpo_gen.AddTerm(t1, zoperators.bupaF, temp_s0, zoperators.bupc, s2, zf);
-          zmpo_gen.AddTerm(-t1, zoperators.bdnc, temp_s0, zoperators.Fbdna, s2, zf);
-          zmpo_gen.AddTerm(t1, zoperators.bdna, temp_s0, zoperators.Fbdnc, s2, zf);
+          AddHubbardHoppingTerms(zmpo_gen, t1, temp_s0, s2, zoperators);
         }
         if (i != Nx - 1) {
           auto s2 = coors2idxSquare(i + 1, j + 1, Nx, Ny);
           auto temp_s0 = s0;
           KeepOrder(temp_s0, s2);
           std::cout << temp_s0 << " " << s2 << std::endl;
-          zmpo_gen.AddTerm(-t1, zoperators.bupcF, temp_s0, zoperators.bupa, s2, zf);
-          zmpo_gen.AddTerm(t1, zoperators.bupaF, temp_s0, zoperators.bupc, s2, zf);
-          zmpo_gen.AddTerm(-t1, zoperators.bdnc, temp_s0, zoperators.Fbdna, s2, zf);
-          zmpo_gen.AddTerm(t1, zoperators.bdna, temp_s0, zoperators.Fbdnc, s2, zf);
+          AddHubbardHoppingTerms(zmpo_gen, t1, temp_s0, s2, zoperators);
         }
       }
     }

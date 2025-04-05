@@ -23,14 +23,14 @@ struct SpinOneHalfOperators {
   using IndexT = qlten::Index<QNT>;
   using Tensor = qlten::QLTensor<TenElemT, QNT>;
 
-  SpinOneHalfOperators() : SpinOneHalfOperators(sites::SpinOneHalfSites<QNT>()) {};
+  SpinOneHalfOperators() : SpinOneHalfOperators(sites::SpinOneHalfSite<QNT>()) {};
 
-  SpinOneHalfOperators(const sites::SpinOneHalfSites<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
-                                                                   sp({site.phys_bond_in, site.phys_bond_out}),
-                                                                   sm({site.phys_bond_in, site.phys_bond_out}),
-                                                                   id({site.phys_bond_in, site.phys_bond_out}),
-                                                                   sx({site.phys_bond_in, site.phys_bond_out}),
-                                                                   sy({site.phys_bond_in, site.phys_bond_out}) {
+  SpinOneHalfOperators(const sites::SpinOneHalfSite<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
+                                                                  sp({site.phys_bond_in, site.phys_bond_out}),
+                                                                  sm({site.phys_bond_in, site.phys_bond_out}),
+                                                                  id({site.phys_bond_in, site.phys_bond_out}),
+                                                                  sx({site.phys_bond_in, site.phys_bond_out}),
+                                                                  sy({site.phys_bond_in, site.phys_bond_out}) {
     const size_t spin_up = site.spin_up;
     const size_t spin_down = site.spin_down;
 
@@ -67,14 +67,35 @@ struct SpinOneHalfOperators {
   // Access to sy is restricted to TrivialRepQN and QLTEN_Complex
   template<typename Q = QNT, typename T = TenElemT>
   typename std::enable_if<std::is_same<Q, qlten::special_qn::TrivialRepQN>::value &&
-                          std::is_same<T, QLTEN_Complex>::value, Tensor>::type GetSy() const {
+      std::is_same<T, QLTEN_Complex>::value, Tensor>::type GetSy() const {
     return sy;
   }
 
-private:
+ private:
   Tensor sx; // Only defined for TrivialRepQN
   Tensor sy; // Only defined for TrivialRepQN and QLTEN_Complex
 };
+
+/**
+ * Add Heisenberg coupling to the MPO generator.
+ * The coupling is defined as:
+ *   H = J * (S_i^z S_j^z + 1/2 (S_i^+ S_j^- + S_i^- S_j^+))
+ * where S_i^z, S_i^+, and S_i^- are the spin operators at site i.
+ *
+ * OperatorT shoule contain sz, sp, sm operators. 
+ * For example, SpinOneHalfOperators<TenElemT, QNT>, tJOperators<TenElemT, QNT>, HubbardOperators<TenElemT, QNT> etc.
+ */
+template<typename TenElemT, typename QNT, typename OperatorT>
+void AddHeisenbergCoupling(MPOGenerator<TenElemT, QNT> &mpo_gen,
+                           const double J,
+                           const size_t i, const size_t j,
+                           const OperatorT &ops = OperatorT()) {
+  assert(i != j);
+  const size_t site1 = std::min(i, j), site2 = std::max(i, j);
+  mpo_gen.AddTerm(J, {ops.sz, ops.sz}, {site1, site2});
+  mpo_gen.AddTerm(J / 2, {ops.sp, ops.sm}, {site1, site2});
+  mpo_gen.AddTerm(J / 2, {ops.sm, ops.sp}, {site1, site2});
+}
 
 } // namespace qlmps
 

@@ -22,22 +22,22 @@ struct tJOperators {
   using IndexT = qlten::Index<QNT>;
   using Tensor = qlten::QLTensor<TenElemT, QNT>;
 
-  tJOperators() : tJOperators(sites::tJSites<QNT>()) {};
+  tJOperators() : tJOperators(sites::tJSite<QNT>()) {};
 
-  tJOperators(const sites::tJSites<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
-                                                 sp({site.phys_bond_in, site.phys_bond_out}),
-                                                 sm({site.phys_bond_in, site.phys_bond_out}),
-                                                 id({site.phys_bond_in, site.phys_bond_out}),
-                                                 f({site.phys_bond_in, site.phys_bond_out}),
-                                                 bupc({site.phys_bond_in, site.phys_bond_out}),
-                                                 bupa({site.phys_bond_in, site.phys_bond_out}),
-                                                 bdnc({site.phys_bond_in, site.phys_bond_out}),
-                                                 bdna({site.phys_bond_in, site.phys_bond_out}),
-                                                 nf({site.phys_bond_in, site.phys_bond_out}),
-                                                 nup({site.phys_bond_in, site.phys_bond_out}),
-                                                 ndn({site.phys_bond_in, site.phys_bond_out}),
-                                                 bdnc_multi_bupa({site.phys_bond_in, site.phys_bond_out}),
-                                                 bupc_multi_bdna({site.phys_bond_in, site.phys_bond_out}) {
+  tJOperators(const sites::tJSite<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
+                                                sp({site.phys_bond_in, site.phys_bond_out}),
+                                                sm({site.phys_bond_in, site.phys_bond_out}),
+                                                id({site.phys_bond_in, site.phys_bond_out}),
+                                                f({site.phys_bond_in, site.phys_bond_out}),
+                                                bupc({site.phys_bond_in, site.phys_bond_out}),
+                                                bupa({site.phys_bond_in, site.phys_bond_out}),
+                                                bdnc({site.phys_bond_in, site.phys_bond_out}),
+                                                bdna({site.phys_bond_in, site.phys_bond_out}),
+                                                nf({site.phys_bond_in, site.phys_bond_out}),
+                                                nup({site.phys_bond_in, site.phys_bond_out}),
+                                                ndn({site.phys_bond_in, site.phys_bond_out}),
+                                                bdnc_multi_bupa({site.phys_bond_in, site.phys_bond_out}),
+                                                bupc_multi_bdna({site.phys_bond_in, site.phys_bond_out}) {
     const size_t empty = site.empty;
     const size_t spin_up = site.spin_up;
     const size_t spin_down = site.spin_down;
@@ -95,6 +95,37 @@ struct tJOperators {
   Tensor bdnc_multi_bupa;  // c^†_↓ c_↑
   Tensor bupc_multi_bdna;  // c^†_↑ c_↓
 };
+
+/**
+ * Add hopping terms of t-J model with specified site indices (i, j) into the MPO generator.
+ *  The hopping term is given by
+ *  -t \sum_{\sigma} c_{i,\sigma}^dag c_{j,\sigma} + (-t)^* \sum_{\sigma} c_{j,\sigma}^dag c_{i,\sigma}
+ * 
+ *  i can be less or larger than j.
+ *  i cannot equal j.
+ *
+ *  hopping amplitude t can be a complex number but no spin dependence.
+ */
+template<typename TenElemT, typename QNT>
+void AddTJHoppingTerms(MPOGenerator<TenElemT, QNT> &mpo_gen,
+                       const TenElemT &t,
+                       const size_t i, const size_t j,
+                       const tJOperators<TenElemT, QNT> &ops = tJOperators<TenElemT, QNT>()) {
+  const size_t site1 = std::min(i, j), site2 = std::max(i, j);
+  TenElemT t0;
+  if (i < j) {
+    t0 = t;
+  } else if (i > j) {
+    t0 = CalcConj(t);
+  } else {
+    throw std::runtime_error("i cannot equal j");
+  }
+  mpo_gen.AddTerm(-t0, {ops.bupc, ops.bupa}, {site1, site2}, {ops.f});
+  mpo_gen.AddTerm(-t0, {ops.bdnc, ops.bdna}, {site1, site2}, {ops.f});
+
+  mpo_gen.AddTerm(-CalcConj(t0), {ops.bupa, ops.bupc}, {site1, site2}, {ops.f});
+  mpo_gen.AddTerm(-CalcConj(t0), {ops.bdna, ops.bdnc}, {site1, site2}, {ops.f});
+}
 
 }//qlmps
 

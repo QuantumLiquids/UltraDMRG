@@ -22,11 +22,11 @@ namespace sites {
  *                      2. qlten::special_qn::TrivialRepQN (no symmetry)
  */
 template<typename QNT>
-struct SpinOneHalfSites : public ModelSiteBase<QNT> {
+struct SpinOneHalfSite : public ModelSiteBase<QNT> {
   using QNSctT = qlten::QNSector<QNT>;
   using IndexT = qlten::Index<QNT>;
 
-  SpinOneHalfSites() {
+  SpinOneHalfSite() {
     if constexpr (std::is_same_v<QNT, qlten::special_qn::U1QN>) {
       // Spin Sz conservation
       this->phys_bond_out = IndexT({QNSctT(QNT({QNCard("Sz", U1QNVal(1))}), 1),
@@ -36,7 +36,7 @@ struct SpinOneHalfSites : public ModelSiteBase<QNT> {
       this->phys_bond_out = IndexT({QNSctT(QNT(), 2)}, TenIndexDirType::OUT);
     } else {
       // Handle unsupported QNT types with a compile-time error
-      static_assert(false, "Unsupported QNT type for SpinOneHalfSites constructor");
+      static_assert(false, "Unsupported QNT type for SpinOneHalfSite constructor");
     }
     this->phys_bond_in = InverseIndex(this->phys_bond_out);
   }
@@ -45,7 +45,7 @@ struct SpinOneHalfSites : public ModelSiteBase<QNT> {
   const size_t spin_up = 0;
   const size_t spin_down = 1;
 
-}; // SpinOneHalfSites
+}; // SpinOneHalfSite
 
 } // namespace sites
 } // namespace qlmps

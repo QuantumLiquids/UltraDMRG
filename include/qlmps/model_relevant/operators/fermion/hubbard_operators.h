@@ -10,6 +10,7 @@
 #define QLMPS_MODEL_RELEVANT_OPERATORS_FERMION_HUBBARD_OPERATORS_H
 
 #include "qlmps/model_relevant/sites/fermion/hubbard_sites.h"
+#include "qlmps/one_dim_tn/mpo/mpogen/mpogen.h"
 
 namespace qlmps {
 
@@ -22,31 +23,31 @@ struct HubbardOperators {
   using IndexT = qlten::Index<QNT>;
   using Tensor = qlten::QLTensor<TenElemT, QNT>;
 
-  HubbardOperators() : HubbardOperators(sites::HubbardSites<QNT>()) {};
+  HubbardOperators() : HubbardOperators(sites::HubbardSite<QNT>()) {};
 
-  HubbardOperators(const sites::HubbardSites<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
-                                                           sp({site.phys_bond_in, site.phys_bond_out}),
-                                                           sm({site.phys_bond_in, site.phys_bond_out}),
-                                                           id({site.phys_bond_in, site.phys_bond_out}),
-                                                           sx({site.phys_bond_in, site.phys_bond_out}),
-                                                           sy({site.phys_bond_in, site.phys_bond_out}),
-                                                           f({site.phys_bond_in, site.phys_bond_out}),
-                                                           bupc({site.phys_bond_in, site.phys_bond_out}),
-                                                           bupa({site.phys_bond_in, site.phys_bond_out}),
-                                                           bdnc({site.phys_bond_in, site.phys_bond_out}),
-                                                           bdna({site.phys_bond_in, site.phys_bond_out}),
-                                                           bupcF({site.phys_bond_in, site.phys_bond_out}),
-                                                           bupaF({site.phys_bond_in, site.phys_bond_out}),
-                                                           Fbdnc({site.phys_bond_in, site.phys_bond_out}),
-                                                           Fbdna({site.phys_bond_in, site.phys_bond_out}),
-                                                           cupccdnc({site.phys_bond_in, site.phys_bond_out}),
-                                                           cdnacupa({site.phys_bond_in, site.phys_bond_out}),
-                                                           nupndn({site.phys_bond_in, site.phys_bond_out}),
-                                                           nf({site.phys_bond_in, site.phys_bond_out}),
-                                                           nfsquare({site.phys_bond_in, site.phys_bond_out}),
-                                                           nup({site.phys_bond_in, site.phys_bond_out}),
-                                                           ndn({site.phys_bond_in, site.phys_bond_out}),
-                                                           cupccdna(sp),      // Initialize reference
+  HubbardOperators(const sites::HubbardSite<QNT> &site) : sz({site.phys_bond_in, site.phys_bond_out}),
+                                                          sp({site.phys_bond_in, site.phys_bond_out}),
+                                                          sm({site.phys_bond_in, site.phys_bond_out}),
+                                                          id({site.phys_bond_in, site.phys_bond_out}),
+                                                          sx({site.phys_bond_in, site.phys_bond_out}),
+                                                          sy({site.phys_bond_in, site.phys_bond_out}),
+                                                          f({site.phys_bond_in, site.phys_bond_out}),
+                                                          bupc({site.phys_bond_in, site.phys_bond_out}),
+                                                          bupa({site.phys_bond_in, site.phys_bond_out}),
+                                                          bdnc({site.phys_bond_in, site.phys_bond_out}),
+                                                          bdna({site.phys_bond_in, site.phys_bond_out}),
+                                                          bupcF({site.phys_bond_in, site.phys_bond_out}),
+                                                          bupaF({site.phys_bond_in, site.phys_bond_out}),
+                                                          Fbdnc({site.phys_bond_in, site.phys_bond_out}),
+                                                          Fbdna({site.phys_bond_in, site.phys_bond_out}),
+                                                          cupccdnc({site.phys_bond_in, site.phys_bond_out}),
+                                                          cdnacupa({site.phys_bond_in, site.phys_bond_out}),
+                                                          nupndn({site.phys_bond_in, site.phys_bond_out}),
+                                                          nf({site.phys_bond_in, site.phys_bond_out}),
+                                                          nfsquare({site.phys_bond_in, site.phys_bond_out}),
+                                                          nup({site.phys_bond_in, site.phys_bond_out}),
+                                                          ndn({site.phys_bond_in, site.phys_bond_out}),
+                                                          cupccdna(sp),      // Initialize reference
                                                            cdnccupa(sm),      // Initialize reference
                                                            Uterm(nupndn)      // Initialize reference
   {
@@ -169,6 +170,28 @@ struct HubbardOperators {
   Tensor sx;
   Tensor sy;
 };
+
+/**
+ * Add hopping terms of Hubbard model with specified site indices (i, j) into the MPO generator.
+ *  The hopping term is given by
+ *  -t \sum_{\sigma} \left(c_{i,\sigma}^dag c_{j,\sigma} + c_{j,\sigma}^dag c_{i,\sigma}\right)
+ *
+ *  i can be less or larger than j.
+ *  i cannot equal j.
+ *
+ *  hopping amplitude t can only be a real number.
+ */
+template<typename TenElemT, typename QNT>
+void AddHubbardHoppingTerms(MPOGenerator<TenElemT, QNT> &mpo_gen,
+                            const double t,
+                            const size_t i, const size_t j,
+                            const HubbardOperators<TenElemT, QNT> &ops = HubbardOperators<TenElemT, QNT>()) {
+  const size_t site1 = std::min(i, j), site2 = std::max(i, j);
+  mpo_gen.AddTerm(-t, ops.bupcF, site1, ops.bupa, site2, ops.f);
+  mpo_gen.AddTerm(t, ops.bupaF, site1, ops.bupc, site2, ops.f);
+  mpo_gen.AddTerm(-t, ops.bdnc, site1, ops.Fbdna, site2, ops.f);
+  mpo_gen.AddTerm(t, ops.bdna, site1, ops.Fbdnc, site2, ops.f);
+}
 
 }//qlmps
 #endif //QLMPS_MODEL_RELEVANT_OPERATORS_FERMION_HUBBARD_OPERATORS_H
