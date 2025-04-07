@@ -57,11 +57,15 @@ struct HubbardSite : public ModelSiteBase<QNT> {
       spin_up = 2;
       spin_down = 3;
       empty = 1;
-    } else {
-      // Handle unsupported QNT types with a compile-time error
-      static_assert(false, "Unsupported QNT type for HubbardSite constructor");
-    }
+    } 
+    
     this->phys_bond_in = InverseIndex(this->phys_bond_out);
+
+    if constexpr (!std::is_same_v<QNT, qlten::special_qn::U1U1QN> &&
+                  !std::is_same_v<QNT, qlten::special_qn::TrivialRepQN> &&
+                  !std::is_same_v<QNT, qlten::special_qn::U1QN>) {
+      static_assert(std::is_same_v<QNT, void>, "Unsupported QNT type for HubbardSite constructor");
+    }
   }
 
   // define the order of the basis, map to the numbers 0,1,2, and 3

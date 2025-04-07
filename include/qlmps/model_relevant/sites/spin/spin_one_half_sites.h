@@ -34,9 +34,10 @@ struct SpinOneHalfSite : public ModelSiteBase<QNT> {
     } else if constexpr (std::is_same_v<QNT, qlten::special_qn::TrivialRepQN>) {
       // No symmetry
       this->phys_bond_out = IndexT({QNSctT(QNT(), 2)}, TenIndexDirType::OUT);
-    } else {
-      // Handle unsupported QNT types with a compile-time error
-      static_assert(false, "Unsupported QNT type for SpinOneHalfSite constructor");
+    } 
+    if constexpr (!std::is_same_v<QNT, qlten::special_qn::U1QN> &&
+                         !std::is_same_v<QNT, qlten::special_qn::TrivialRepQN>) {
+      static_assert(std::is_same_v<QNT, void>, "Unsupported QNT type for SpinOneHalfSite constructor");
     }
     this->phys_bond_in = InverseIndex(this->phys_bond_out);
   }

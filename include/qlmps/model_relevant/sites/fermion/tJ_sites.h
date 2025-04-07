@@ -42,9 +42,12 @@ struct tJSite : public ModelSiteBase<QNT> {
       this->phys_bond_out = IndexT({QNSctT(QNT({QNCard("Sz", U1QNVal(1))}), 1),
                                     QNSctT(QNT({QNCard("Sz", U1QNVal(-1))}), 1),
                                     QNSctT(QNT({QNCard("Sz", U1QNVal(0))}), 1)}, TenIndexDirType::OUT);
-    } else {
-      // Handle unsupported QNT types with a compile-time error
-      static_assert(false, "Unsupported QNT type for tJSite constructor");
+    } 
+    
+    if constexpr (!std::is_same_v<QNT, qlten::special_qn::U1U1QN> &&
+                  !std::is_same_v<QNT, qlten::special_qn::TrivialRepQN> &&
+                  !std::is_same_v<QNT, qlten::special_qn::U1QN>) {
+      static_assert(std::is_same_v<QNT, void>, "Unsupported QNT type for tJSite constructor");
     }
     spin_up = 0;
     spin_down = 1;
