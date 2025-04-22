@@ -157,8 +157,10 @@ void DMRGExecutor<TenElemT, QNT>::Execute() {
       break; // stop in advance
     }
   }
-  mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
-  DMRGPostProcess_();
+  if (!emergency_stop_requested_.load()) {
+    mps_.DumpTen(left_boundary_ + 1, GenMPSTenName(sweep_params.mps_path, left_boundary_ + 1), true);
+    DMRGPostProcess_();
+  }
   SetStatus(ExecutorStatus::FINISH);
 }
 
