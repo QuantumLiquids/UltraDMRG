@@ -14,7 +14,6 @@
 #ifndef QLMPS_ALGORITHM_VMPS_TWO_SITE_UPDATE_NOISE_FINITE_VMPS_IMPL_H
 #define QLMPS_ALGORITHM_VMPS_TWO_SITE_UPDATE_NOISE_FINITE_VMPS_IMPL_H
 
-
 #include <stdio.h>                                                // remove
 #include <iomanip>
 
@@ -38,7 +37,6 @@
 
 namespace qlmps {
 using namespace qlten;
-
 
 // Forward declarition
 template<typename DTenT>
@@ -126,7 +124,6 @@ QLTEN_Double TwoSiteFiniteVMPSWithNoise( //same function name, overload by class
   return e0;
 }
 
-
 /**
 Two-site (noised) update DMRG algorithm refer to 10.1103/PhysRevB.91.155115
 */
@@ -202,7 +199,6 @@ double TwoSiteFiniteVMPSSweep(//also a overload
   return e0;
 }
 
-
 /**  Single step for two site noised update.
 This function includes below procedure:
 - update `mps[target]` and `mps[next_site]` tensors according corresponding environment tensors and the mpo tensor, using lanczos algorithm;
@@ -241,20 +237,17 @@ double TwoSiteFiniteVMPSUpdate(
                            {0}};
   svd_ldims = 2;
   switch (dir) {
-    case 'r':
-      lsite_idx = target_site;
+    case 'r':lsite_idx = target_site;
       rsite_idx = target_site + 1;
       lenv_len = target_site;
       renv_len = N - (target_site + 2);
       break;
-    case 'l':
-      lsite_idx = target_site - 1;
+    case 'l':lsite_idx = target_site - 1;
       rsite_idx = target_site;
       lenv_len = target_site - 1;
       renv_len = N - target_site - 1;
       break;
-    default:
-      std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
+    default:std::cout << "dir must be 'r' or 'l', but " << dir << std::endl;
       exit(1);
   }
 
@@ -283,7 +276,6 @@ double TwoSiteFiniteVMPSUpdate(
 #else
   auto lancz_elapsed_time = lancz_timer.Elapsed();
 #endif
-
 
 #ifdef QLMPS_TIMING_MODE
   Timer expand_timer("two_site_fvmps_add_noise");
@@ -329,7 +321,7 @@ double TwoSiteFiniteVMPSUpdate(
       noise = 0.0;
       need_expand = false;
     } else if (dir == 'l' &&
-               IsQNCovered(*qnscts_left, *qnscts_right)
+        IsQNCovered(*qnscts_left, *qnscts_right)
         ) {
       noise = 0.0;
       need_expand = false;
@@ -383,8 +375,7 @@ double TwoSiteFiniteVMPSUpdate(
 
   TenT the_other_mps_ten;
   switch (dir) {
-    case 'r':
-      mps[lsite_idx] = std::move(u);
+    case 'r':mps[lsite_idx] = std::move(u);
       Contract(&s, &vt, {{1},
                          {0}}, &the_other_mps_ten);
       mps[rsite_idx] = std::move(the_other_mps_ten);
@@ -395,8 +386,7 @@ double TwoSiteFiniteVMPSUpdate(
       mps[lsite_idx] = std::move(the_other_mps_ten);
       mps[rsite_idx] = std::move(vt);
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE
@@ -417,14 +407,12 @@ double TwoSiteFiniteVMPSUpdate(
       renvs[renv_len + 1] = std::move(UpdateSiteRenvs(renvs[renv_len], mps[target_site], mpo[target_site]));
     }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 
 #ifdef QLMPS_TIMING_MODE
   update_env_ten_timer.PrintElapsed();
 #endif
-
 
   auto update_elapsed_time = update_timer.Elapsed();
   std::cout << "Site " << std::setw(4) << target_site
@@ -441,7 +429,6 @@ double TwoSiteFiniteVMPSUpdate(
   return lancz_res.gs_eng;
 }
 
-
 template<typename TenElemT, typename QNT>
 void TwoSiteFiniteVMPSExpand(
     FiniteMPS<TenElemT, QNT> &mps,
@@ -454,7 +441,7 @@ void TwoSiteFiniteVMPSExpand(
   // note: The expanded tensors are saved in *gs_vec, and mps[next_next_site]
   using TenT = QLTensor<TenElemT, QNT>;
   TenT *ten_tmp = new TenT();
-  // we suppose mps contain mps[targe_site], mps[next_site],  mps[next_next_site]
+  // On current function, mps should contain mps[target_site], mps[next_site],  mps[next_next_site] in memory
   if (dir == 'r') {
 #ifdef QLMPS_TIMING_MODE
     Timer contract_timer("\t Contract time for expansion");
@@ -463,7 +450,20 @@ void TwoSiteFiniteVMPSExpand(
     Contract(eff_ham[0], gs_vec, {{2},
                                   {0}}, &temp_ten1);
     Contract<TenElemT, QNT, true, true>(temp_ten1, *eff_ham[1], 1, 0, 2, temp_ten2);
-    Contract<TenElemT, QNT, true, true>(temp_ten2, *eff_ham[2], 4, 0, 2, *ten_tmp);
+    if (gs_vec->GetIndex(3).GetDir() == OUT) {//normal case
+      Contract<TenElemT, QNT, true, true>(temp_ten2, *eff_ham[2], 4, 0, 2, *ten_tmp);
+    } else { // For the origination of gs_vec->GetIndex(3).GetDir() == IN,
+      // see CheckAndUpdateBoundaryMPSTensors, right boundary setup
+      auto eff_ham2 = *eff_ham[2];
+      eff_ham2.Transpose({3, 0, 1, 2});
+      QNT some_qn = gs_vec->GetIndex(3).GetQNSct(0).GetQn();
+      QNT qn0 = some_qn + (-some_qn);
+      TenT u, v;
+      QLTensor<QLTEN_Double, QNT> s;
+      mock_qlten::SVD(&eff_ham2, 1, qn0, &u, &s, &v);
+      v.Transpose({1, 2, 3, 0});
+      Contract<TenElemT, QNT, true, true>(temp_ten2, v, 4, 0, 2, *ten_tmp);
+    }
 
 #ifdef QLMPS_TIMING_MODE
     contract_timer.PrintElapsed();
@@ -554,7 +554,6 @@ void TwoSiteFiniteVMPSExpand(
 #endif
   }
 }
-
 
 template<typename TenElemT, typename QNT>
 inline void LoadRelatedTensOnTwoSiteAlgWhenNoisedRightMoving(
@@ -678,14 +677,12 @@ void DumpRelatedTensTwoSiteAlgNoiseCase(
       );
     }
       break;
-    default:
-      assert(false);
+    default:assert(false);
   }
 #ifdef QLMPS_TIMING_MODE
   postprocessing_timer.PrintElapsed();
 #endif
 }
-
 
 template<typename TenElemT, typename QNT>
 double CalEnergyEptTwoSite(
@@ -737,12 +734,12 @@ bool IsQNCovered(const QNSectorVec<QNT> &qnsectors1,
   std::vector<size_t> hash_set_of_qns_in_qnsectors1, hash_set_of_qns_in_qnsectors2;
   hash_set_of_qns_in_qnsectors1.reserve(size1);
   hash_set_of_qns_in_qnsectors2.reserve(size2);
-  for (const QNSector<QNT> &qnsector: qnsectors1) {
+  for (const QNSector<QNT> &qnsector : qnsectors1) {
     hash_set_of_qns_in_qnsectors1.push_back(qnsector.GetQn().Hash());
   }
   std::sort(hash_set_of_qns_in_qnsectors1.begin(),
             hash_set_of_qns_in_qnsectors1.end());
-  for (const QNSector<QNT> &qnsector: qnsectors2) {
+  for (const QNSector<QNT> &qnsector : qnsectors2) {
     hash_set_of_qns_in_qnsectors2.push_back(qnsector.GetQn().Hash());
   }
   std::sort(hash_set_of_qns_in_qnsectors2.begin(),

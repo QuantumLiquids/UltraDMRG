@@ -28,7 +28,7 @@
 namespace qlmps {
 using namespace qlten;
 
-//forward decelaration
+//forward declaration
 template<typename TenElemT, typename QNT>
 inline void LoadRelatedTensOnTwoSiteAlgWhenNoisedRightMoving(
     FiniteMPS<TenElemT, QNT> &mps,
@@ -50,8 +50,9 @@ inline void LoadRelatedTensOnTwoSiteAlgWhenNoisedLeftMoving(
 );
 
 /**
- * @note It's better master the tensor manipulation thread number = slave's -2.
- *       For the other threads used to read/dump tensors.
+ * @note We suggest that the tensor manipulation thread number in master process = that in workers' - 2
+ *       so that the remaining 2 threads can be used to read/dump tensors.
+ *       (usually the thread numbers in different MPI process are uniform.)
  */
 template<typename TenElemT, typename QNT>
 inline QLTEN_Double TwoSiteFiniteVMPSWithNoise_(
@@ -131,10 +132,36 @@ QLTEN_Double MasterTwoSiteFiniteVMPSWithNoise(
   mps.LeftCanonicalizeTen(left_boundary);//make sure the central is as left_boundary
   mps.DumpTen(left_boundary, GenMPSTenName(sweep_params.mps_path, left_boundary), true);
   mps.DumpTen(left_boundary + 1, GenMPSTenName(sweep_params.mps_path, left_boundary + 1), true);
+  assert(mps.empty());
+  NoisedVMPSPostProcess(mps, sweep_params, left_boundary);
   MasterBroadcastOrder(program_final, rank, comm);
   return e0;
 }
 
+///< Move center from left_boundary_ + 1 to 0
+template<typename TenElemT, typename QNT>
+void NoisedVMPSPostProcess(
+    FiniteMPS<TenElemT, QNT> &mps,
+    const FiniteVMPSSweepParams &sweep_params,
+    size_t left_boundary) {
+  size_t center = left_boundary + 1;
+  mps.LoadTen(sweep_params.mps_path, center);
+  for (size_t site = center; site > 0; site--) {
+    mps.LoadTen(sweep_params.mps_path, site - 1);
+    mps.RightCanonicalizeTen(site);
+    mps.DumpTen(sweep_params.mps_path, site);
+  }
+  mps.DumpTen(sweep_params.mps_path, 0);
+  std::cout << "Moved the center of MPS to 0." << std::endl;
+}
+
+/**
+ *
+ * @return
+ * At the end of the function, the center of MPS is moved to two sites (left_boundary, left_boundary+1).
+ * The center has two sites because expansion appear between this two sites.
+ * In MPS, only tensors in these two sites are stored in memory.
+ */
 template<typename TenElemT, typename QNT>
 double TwoSiteFiniteVMPSSweep(
     FiniteMPS<TenElemT, QNT> &mps,
@@ -146,7 +173,6 @@ double TwoSiteFiniteVMPSSweep(
     const MPI_Comm &comm
 ) {
   auto N = mps.size();
-  FiniteVMPSSweepParams sweep_params_no_noise = (FiniteVMPSSweepParams) sweep_params;
   using TenT = QLTensor<TenElemT, QNT>;
   TenVec<TenT> lenvs(N - 1);
   TenVec<TenT> renvs(N - 1);
@@ -180,7 +206,7 @@ double TwoSiteFiniteVMPSSweep(
         std::ref(lenvs),
         std::ref(renvs),
         i,
-        std::ref(sweep_params_no_noise)
+        std::ref(sweep_params)
     );
     if (i < right_boundary - 2) {
       load_related_tens_thread.join();
@@ -212,7 +238,7 @@ double TwoSiteFiniteVMPSSweep(
         std::ref(lenvs),
         std::ref(renvs),
         i,
-        std::ref(sweep_params_no_noise)
+        std::ref(sweep_params)
     );
     if (i > left_boundary + 2) {
       load_related_tens_thread.join();
