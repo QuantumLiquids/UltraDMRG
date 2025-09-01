@@ -94,7 +94,7 @@ if (QLMPS_USE_GPU)
 
         add_test(
                 NAME ${TEST_NAME}
-                COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
+                COMMAND $<TARGET_FILE:${TEST_NAME}> ${INPUT_ARGS}
                 WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         )
 
@@ -122,7 +122,7 @@ else ()
 
         add_test(
                 NAME ${TEST_NAME}
-                COMMAND "${TEST_NAME}" "${INPUT_ARGS}"
+                COMMAND $<TARGET_FILE:${TEST_NAME}> ${INPUT_ARGS}
                 WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         )
 
@@ -211,7 +211,8 @@ add_unittest(test_impo_gen
 add_unittest(test_case_params_parser
         test_case_params_parser.cc
         "" "" ""
-        "${CMAKE_CURRENT_LIST_DIR}/testdata/test-params.json" "")
+        "${CMAKE_CURRENT_LIST_DIR}/testdata/test-params.json;${CMAKE_CURRENT_LIST_DIR}/testdata/test-params-wrong-types.json"
+)
 # Lanczos solver
 add_unittest(test_vmps_lanczos_solver
         "test_algorithm/test_lanczos_solver.cc"

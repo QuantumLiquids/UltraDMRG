@@ -1,0 +1,14 @@
+{
+  "CaseParams": {
+    "Int": "not-an-int",
+    "Double": "not-a-double",
+    "Char": "",
+    "String": 12345,
+    "Boolean": "false",
+    "IntVec": ["a", "b"],
+    "SizeTVec": [1.2, 3.4],
+    "DoubleVec": ["x", 2]
+  }
+}
+
+
